@@ -25,7 +25,7 @@
     defined(TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE) &&              \
     TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE
 #include <spdlog/spdlog.h>
-#include <emscripten.h>
+#include "LogoTrace.h"
 #define TVP_HAS_WCHAIN_CONTINUOUS_EVENT_TRACE 1
 #else
 #define TVP_HAS_WCHAIN_CONTINUOUS_EVENT_TRACE 0
@@ -39,22 +39,7 @@ bool TVPSystemControlAlive = false;
 // reference Begin/End/pump state transitions contain no JS query, logger lookup
 // or diagnostic sequence counter.
 static bool TVPSystemControlLogoTraceEnabled() {
-    return EM_ASM_INT({
-        try {
-            if(typeof window !== 'undefined' &&
-               window.__KRKR_TRACE_LOGO_CHAIN__) {
-                return 1;
-            }
-            const params = new URLSearchParams(window.location.search);
-            const traceParam = params.get('trace') || "";
-            return params.has('traceLogoChain') ||
-                traceParam === 'logo' ||
-                traceParam === 'logo-chain' ||
-                traceParam === '1';
-        } catch(e) {
-            return 0;
-        }
-    }) != 0;
+    return TVPLogoTraceEnabled();
 }
 
 static bool TVPSystemControlTraceSeqAllowed(uint32_t seq) {

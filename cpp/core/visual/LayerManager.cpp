@@ -11,9 +11,7 @@
 
 #include "tjsCommHead.h"
 #include <spdlog/spdlog.h>
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include "LogoTrace.h"
 
 #include "tjsArray.h"
 #include "LayerManager.h"
@@ -27,27 +25,7 @@
 #include "LayerTreeOwner.h"
 
 static bool lowLevelLogoTraceEnabled() {
-#ifdef __EMSCRIPTEN__
-    return EM_ASM_INT({
-               try {
-                   if(typeof window !== 'undefined' &&
-                      window.__KRKR_TRACE_LOGO_CHAIN__) {
-                       return 1;
-                   }
-                   const params = new URLSearchParams(window.location.search);
-                   const traceParam = params.get('trace') || "";
-                   return params.has('traceLogoChain') ||
-                          traceParam === 'logo' ||
-                          traceParam.split(',').includes('logo')
-                              ? 1
-                              : 0;
-               } catch(e) {
-                   return 0;
-               }
-           }) != 0;
-#else
-    return false;
-#endif
+    return TVPLogoTraceEnabled();
 }
 
 //---------------------------------------------------------------------------

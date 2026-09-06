@@ -22,9 +22,7 @@
 #include <string>
 #include <utility>
 #include <spdlog/spdlog.h>
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include "LogoTrace.h"
 
 namespace TJS {
     ttstr TJSMapGlobalStringMap(const ttstr &string);
@@ -79,26 +77,7 @@ static tjs_int32 ClassID_KAGParser = -1;
 
 namespace {
     bool TVPKAGLogoChainTraceEnabled() {
-#ifdef __EMSCRIPTEN__
-        return EM_ASM_INT({
-            try {
-                if(typeof window !== 'undefined' &&
-                   window.__KRKR_TRACE_LOGO_CHAIN__) {
-                    return 1;
-                }
-                const params = new URLSearchParams(window.location.search);
-                const traceParam = params.get('trace') || "";
-                return params.has('traceLogoChain') ||
-                    traceParam === 'logo' ||
-                    traceParam === 'logo-chain' ||
-                    traceParam === '1';
-            } catch(e) {
-                return 0;
-            }
-        }) != 0;
-#else
-        return false;
-#endif
+        return TVPLogoTraceEnabled();
     }
 
     std::string TVPKAGTraceSanitize(std::string value,

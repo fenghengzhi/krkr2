@@ -2,6 +2,7 @@
 #include "cocos2d.h"
 #include "cocos-ext.h"
 #include "tjsCommHead.h"
+#include "LogoTrace.h"
 #include "StorageIntf.h"
 #include "EventIntf.h"
 #include "SysInitImpl.h"
@@ -84,25 +85,7 @@ static Label *_fpsLabel = nullptr;
 
 namespace {
 bool lowLevelLogoTraceEnabled() {
-#ifdef __EMSCRIPTEN__
-    return EM_ASM_INT({
-               try {
-                   if(typeof window !== 'undefined' &&
-                      window.__KRKR_TRACE_LOGO_CHAIN__) {
-                       return 1;
-                   }
-                   const params = new URLSearchParams(window.location.search);
-                   const traceParam = params.get('trace') || "";
-                   return params.has('traceLogoChain') ||
-                       traceParam === 'logo' || traceParam === 'logo-chain' ||
-                       traceParam === '1';
-               } catch (e) {
-                   return 0;
-               }
-           }) != 0;
-#else
-    return false;
-#endif
+    return TVPLogoTraceEnabled();
 }
 } // namespace
 

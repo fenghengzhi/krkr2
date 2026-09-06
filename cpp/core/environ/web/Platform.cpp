@@ -27,7 +27,6 @@
 #include "Defer.h"
 #include "ui/MessageBox.h"
 #include "cocos2d/MainScene.h"
-#include "LayerFrameDumper.h"
 #include "VirtualLazyFS.h"
 
 void TVPGetMemoryInfo(TVPMemoryInfo &m) {
@@ -402,8 +401,6 @@ EM_JS(char *, krkr2_get_startup_xp3_path, (), {
 });
 
 bool TVPCheckStartupArg() {
-    TVPInstallLayerFrameDumperIfRequested();
-
     char *selectedXp3 = krkr2_get_startup_xp3_path();
     if (selectedXp3) {
         std::string path(selectedXp3);

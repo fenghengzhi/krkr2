@@ -1,5 +1,8 @@
 #pragma once
 
+// Wasmtime sampling interface. Implementations live in the differential guest;
+// browser builds do not collect or publish motion-frame JSON.
+
 #include <cstdint>
 
 #if defined(KRKR2_WASMTIME_HEADLESS)

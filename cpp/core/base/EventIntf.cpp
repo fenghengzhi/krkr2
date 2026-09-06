@@ -17,7 +17,7 @@
     TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE
 #include <string>
 #include <spdlog/spdlog.h>
-#include <emscripten.h>
+#include "LogoTrace.h"
 #define TVP_HAS_WCHAIN_CONTINUOUS_EVENT_TRACE 1
 #else
 #define TVP_HAS_WCHAIN_CONTINUOUS_EVENT_TRACE 0
@@ -846,24 +846,9 @@ extern "C" int TVPWasmtimeGetContinuousTickAt(int index) {
 // This diagnostic block is intentionally absent from normal builds.  The four
 // reference binaries have no URL/JS query, stack capture, logger lookup or
 // diagnostic counter on continuous-event paths.  Enabling it is therefore an
-// explicit Emscripten debugging mode, not part of the reconstructed behavior.
+// explicit Wasmtime diagnostic mode, not part of the reconstructed behavior.
 static bool TVPLogoChainTraceEnabledForEvents() {
-    return EM_ASM_INT({
-        try {
-            if(typeof window !== 'undefined' &&
-               window.__KRKR_TRACE_LOGO_CHAIN__) {
-                return 1;
-            }
-            const params = new URLSearchParams(window.location.search);
-            const traceParam = params.get('trace') || "";
-            return params.has('traceLogoChain') ||
-                traceParam === 'logo' ||
-                traceParam === 'logo-chain' ||
-                traceParam === '1';
-        } catch(e) {
-            return 0;
-        }
-    }) != 0;
+    return TVPLogoTraceEnabled();
 }
 
 static bool TVPTraceContinuousSeqAllowed(tjs_uint64 seq) {

@@ -18,9 +18,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <spdlog/spdlog.h>
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include "LogoTrace.h"
 
 #include "tjsArray.h"
 #include "LayerIntf.h"
@@ -86,25 +84,7 @@ static bool IsGPU() {
 }
 
 static bool lowLevelLogoTraceEnabled() {
-#ifdef __EMSCRIPTEN__
-    return EM_ASM_INT({
-               try {
-                   if(typeof window !== 'undefined' &&
-                      window.__KRKR_TRACE_LOGO_CHAIN__) {
-                       return 1;
-                   }
-                   const params = new URLSearchParams(window.location.search);
-                   const traceParam = params.get('trace') || "";
-                   return params.has('traceLogoChain') ||
-                       traceParam === 'logo' || traceParam === 'logo-chain' ||
-                       traceParam === '1';
-               } catch (e) {
-                   return 0;
-               }
-           }) != 0;
-#else
-    return false;
-#endif
+    return TVPLogoTraceEnabled();
 }
 
 //---------------------------------------------------------------------------

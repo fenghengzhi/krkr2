@@ -396,9 +396,10 @@ class WasmtimeEnvProvider:
             "__asyncjs__TVPWaitWaveSoundContinuation":
                 self._unsupported_web_wave_sound_continuation,
             "TVPWebAudioDecodeStartJS": self._web_audio_decode_start,
-            "emscripten_asm_const_int": self._asm_const_int,
+            "krkr2_wasmtime_logo_trace_enabled": self._logo_trace_enabled,
+            "emscripten_asm_const_int": self._return_zero,
             "emscripten_asm_const_int_sync_on_main_thread":
-                self._asm_const_int,
+                self._return_zero,
             "emscripten_asm_const_double": self._asm_const_double,
             "emscripten_asm_const_ptr_sync_on_main_thread": self._return_zero,
             "emscripten_notify_memory_growth": self._return_none,
@@ -486,18 +487,8 @@ class WasmtimeEnvProvider:
                           *args: Any) -> float:
         return self.simulation_time_ms
 
-    def _asm_const_int(self, _func_type: Any, _caller: Any,
-                       *args: Any) -> int:
-        if os.environ.get("KRKR2_WASMTIME_TRACE_LOGO_CHAIN") == "1":
-            for arg in args[:2]:
-                try:
-                    text = self._read_c_string(_caller, int(arg))
-                except Exception:
-                    continue
-                if ("traceLogoChain" in text or
-                        "__KRKR_TRACE_LOGO_CHAIN__" in text):
-                    return 1
-        return 0
+    def _logo_trace_enabled(self, _func_type: Any, _caller: Any) -> int:
+        return int(os.environ.get("KRKR2_WASMTIME_TRACE_LOGO_CHAIN") == "1")
 
     def _pthread_create(self, _func_type: Any, _caller: Any,
                         *args: Any) -> int:

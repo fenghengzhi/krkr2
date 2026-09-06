@@ -96,12 +96,17 @@ target_compile_options(krkr2_wasmtime_guest_objects PRIVATE
     "SHELL:-sUSE_FREETYPE=1"
 )
 
-# Keep the existing continuous-event trace compiled only into the dedicated
-# Wasmtime differential build.  The direct host opts into the trace at runtime;
-# normal Web/native targets retain the reference-compatible no-diagnostic path.
+# The dedicated guest queries an explicit host import for optional logo-chain
+# diagnostics. Normal Web/native builds compile that query to false.
+foreach(_trace_target IN ITEMS tjs2 core_base_module core_environ_module
+        core_visual_module krkr2_wasmtime_guest_objects)
+    target_compile_definitions(${_trace_target} PRIVATE
+        KRKR2_WASMTIME_DIAGNOSTICS=1)
+endforeach()
+
+# Keep the continuous-event probes exclusive to the differential build.
 target_compile_definitions(core_base_module PRIVATE
     TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE=1
-    KRKR2_WASMTIME_DIAGNOSTICS=1
 )
 target_compile_definitions(core_environ_module PRIVATE
     TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE=1

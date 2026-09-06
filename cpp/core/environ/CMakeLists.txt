@@ -23,7 +23,6 @@ set(ENVIRON_SOURCE_FILES
 
     $<$<BOOL:${WEB}>:${ENVIRON_PATH}/web/Platform.cpp>
     $<$<BOOL:${WEB}>:${ENVIRON_PATH}/web/stubs.cpp>
-    $<$<BOOL:${WEB}>:${ENVIRON_PATH}/web/LayerFrameDumper.cpp>
     $<$<BOOL:${WEB}>:${ENVIRON_PATH}/web/VirtualLazyFS.cpp>
 
     ${ENVIRON_PATH}/cocos2d/AppDelegate.cpp

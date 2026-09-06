@@ -138,6 +138,12 @@ the following exports:
 - `krkr2_wasm_get_motion_trace_len`
 - `krkr2_wasm_clear_motion_trace`
 
+Optional logo-chain logs use the `env.krkr2_wasmtime_logo_trace_enabled` import.
+Set `KRKR2_WASMTIME_TRACE_LOGO_CHAIN=1` in the Python host to enable them. This
+switch is independent of the motion sampling exports above, which remain active
+without it. Browser URL switches and browser motion/layer JSON output have been
+removed; the host no longer inspects embedded JavaScript to enable diagnostics.
+
 This is architecture-neutral and is the only automated motion-playback path.
 Interactive Wasm-only stepping of the full guest would require a Wasmtime Rust
 embedder that supplies the same custom imports while enabling guest debugging;

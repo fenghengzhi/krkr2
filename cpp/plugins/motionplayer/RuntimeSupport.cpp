@@ -15,9 +15,7 @@
 
 #include <spdlog/spdlog.h>
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include "common/LogoTrace.h"
 
 #include "tjsArray.h"
 #include "tjsDictionary.h"
@@ -298,54 +296,11 @@ namespace motion::detail {
         }
 
         bool logoTraceQueryEnabled() {
-#ifdef __EMSCRIPTEN__
-            return EM_ASM_INT({
-                try {
-                    if(typeof window !== 'undefined' &&
-                       window.__KRKR_TRACE_LOGO_CHAIN__) {
-                        return 1;
-                    }
-                    const params = new URLSearchParams(window.location.search);
-                    const traceParam = params.get('trace') || "";
-                    if(params.has('traceLogoChain')) {
-                        return 1;
-                    }
-                    return traceParam === 'logo' ||
-                        traceParam === 'logo-chain' ||
-                        traceParam === '1';
-                } catch (e) {
-                    return 0;
-                }
-            }) != 0;
-#else
-            // The four current native references expose no logo-chain trace or
-            // snapshot switch. Three-encoding searches find none of the Web
-            // sidecar's names, and their load/construct paths have no matching
-            // trace, path-formatting or logger data flow. Keep this opt-in
-            // diagnostic strictly Web-only; native builds always disable it.
-            return false;
-#endif
+            return TVPLogoTraceEnabled();
         }
 
         bool logoSnapshotQueryEnabled() {
-#ifdef __EMSCRIPTEN__
-            return EM_ASM_INT({
-                try {
-                    const params = new URLSearchParams(window.location.search);
-                    const snapParam = params.get('snap') || "";
-                    const traceParam = params.get('trace') || "";
-                    return snapParam === '1' ||
-                        snapParam === 'logo' ||
-                        traceParam === 'snap' ||
-                        traceParam === 'logo-snap';
-                } catch (e) {
-                    return 0;
-                }
-            }) != 0;
-#else
-            // Same Web-only sidecar boundary as logoTraceQueryEnabled above.
             return false;
-#endif
         }
 
         LogoChainTraceSession &ensureLogoTraceSessionLocked(
