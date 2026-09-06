@@ -26,7 +26,8 @@ $env:VCPKG_ROOT = "C:\path\to\vcpkg"
 当前 emsdk 自带的 Python。这样可避免 vcpkg 误选不兼容的旧解释器或重复下载另一份
 嵌入式 Python。不要把这一要求描述成“所有系统 Python 都缺少 `match` 语法”。
 
-依赖工具：Emscripten SDK、vcpkg、ninja、cmake 3.31.1+、bison 3.8.2+、Python 3。
+依赖工具：Emscripten SDK 6.0.9（与 CI 一致）、vcpkg、ninja、cmake 3.31.1+、bison 3.8.2+、Python 3。
+切换 SDK 版本后，使用新的构建目录并重新编译所有依赖，不能复用旧 SDK 的静态库。
 Windows 通常调用 `python`，POSIX 环境通常调用 `python3`；以当前机器实际可执行文件
 为准。必须执行 `bison --version`（Windows 也可能是 `win_bison --version`）核对真实
 版本，不能根据文件夹或包名猜测；WinFlexBison 2.5.24 实际只有 Bison 3.7.4，不能
@@ -44,13 +45,19 @@ cmake --preset "Web Debug Config" `
 
 Emscripten 的端口库（SDL2、SDL2_ttf 等）在首次使用时按需编译并缓存。Ninja 并行构建时多个 `em++` 进程同时触发端口编译会导致缓存锁冲突（`EM_CACHE_IS_LOCKED` 断言失败）。
 
-**首次构建前**（或清空 emsdk 缓存后），必须先单线程预编译端口：
+**首次配置 CMake 前**（或清空 emsdk 缓存后），必须依次预编译端口；vcpkg 的 cocos2dx 构建也会触发端口编译：
 
 ```bash
-embuilder build sdl2 sdl2_ttf sdl2-mt sdl2_ttf-mt
+embuilder build libpng libpng-mt libpng-legacysjlj libpng-mt-legacysjlj
+embuilder build freetype freetype-legacysjlj
+embuilder build harfbuzz harfbuzz-mt
+embuilder build sdl2 sdl2-mt
+embuilder build sdl2_ttf sdl2_ttf-mt
 ```
 
-此命令会自动编译 freetype、harfbuzz 等依赖。`-mt` 后缀为 pthreads 变体。缓存建立后后续构建无需重复执行。
+`-mt` 后缀为 pthreads 变体。6.0.9 的 libpng/FreeType 按需构建会把 Python 布尔值拼成
+`-sWASM_LEGACY_EXCEPTIONS=True`，编译器拒绝该参数；显式 embuilder 变体使用整数
+设置，可提前生成项目所需的缓存，保持原有 Wasm 异常模式。缓存建立后后续构建无需重复执行。
 
 ## 构建命令
 

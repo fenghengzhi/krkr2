@@ -11,7 +11,7 @@
 
 #include "tjsCommHead.h"
 #include <spdlog/spdlog.h>
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
@@ -24,7 +24,7 @@
 #include "DebugIntf.h"
 
 static bool lowLevelLogoTraceEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
     return EM_ASM_INT({
                try {
                    if(typeof window !== 'undefined' &&

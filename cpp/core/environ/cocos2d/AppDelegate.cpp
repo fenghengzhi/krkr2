@@ -10,7 +10,7 @@
 #include "ui/extension/UIExtension.h"
 #include "ConfigManager/LocaleConfigManager.h"
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 extern unsigned int TVPMaxTextureSize;
 #endif
@@ -55,7 +55,7 @@ bool TVPAppDelegate::applicationDidFinishLaunching() {
 #endif
     }
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
     // Android sub_A587D4 @ 0xA587D4 initializes this shared renderer limit
     // from GL_MAX_TEXTURE_SIZE before motionplayer's sub_695DE8 consumes it.
     // Web uses the software TVP render manager, so its OpenGL InitGL path is
@@ -103,7 +103,7 @@ bool TVPAppDelegate::applicationDidFinishLaunching() {
     // set searching path
     cocos2d::FileUtils::getInstance()->setSearchPaths(searchPath);
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
     bool showStats = EM_ASM_INT({
         return new URLSearchParams(window.location.search).has('debug') ? 1 : 0;
     });

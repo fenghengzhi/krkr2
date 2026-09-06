@@ -14,7 +14,7 @@
 ## 构建
 - 调试版：`cmake --preset "Web Debug Config"` → `cmake --build out/web/debug`
 - 发布版：`cmake --preset "Web Release Config"` → `cmake --build out/web/release`
-- 依赖：emsdk 已 source、VCPKG_ROOT 已设置、ninja、cmake 3.31.1+、bison 3.8.2+
+- 依赖：Emscripten 6.0.9（与 CI 一致）、emsdk 已 source、VCPKG_ROOT 已设置、ninja、cmake 3.31.1+、bison 3.8.2+；切换 SDK 后使用新的构建目录并重编译所有依赖，禁止复用旧 SDK 的静态库
 - 固定输出：`out/web/{debug,release}/` → index.html, index.js, index.wasm, vlfs.js, assets.zip（UI 资源 stored-zip；--preload-file/index.data 已移除，游戏与 UI 文件经 VirtualLazyFS 懒加载，见 `cpp/core/environ/web/VirtualLazyFS.h`）。`index.worker.js`、`.symbols` 等 sidecar 是否出现取决于当前 Emscripten 版本和构建选项，不得当作固定产物
 - 机器特定的 EMSDK/VCPKG_ROOT 路径可写在可选且不入库的 `.claude.local.md`；该文件不存在时使用当前 shell 环境或实际安装路径，禁止假定它必然存在
 

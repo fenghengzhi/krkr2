@@ -9,7 +9,8 @@
 // "SuspendError: Suspending() wrapper called outside of a promising() context"。
 //
 // 本项目 emscripten_set_main_loop_arg 的唯一注册者是 krkr2_main_loop_tick
-//（JSPI_EXPORTS 唯一成员，见 CMakeLists.txt 与 vcpkg cocos2dx patch
+//（项目显式配置的 JSPI_EXPORTS 唯一成员；SDK 另行包装 main 与 pthread 入口，
+// 见 CMakeLists.txt 与 vcpkg cocos2dx patch
 // CCApplication-emscripten.cpp），故此处无条件包 promising——与 Chrome 下
 // getWasmTableEntry 命中身份比较后的行为完全一致，对 V8 无行为变化。
 addToLibrary({

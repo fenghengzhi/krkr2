@@ -96,11 +96,10 @@ elseif(WEB)
     # redzone 把静态数据段顶得很高，wasm 模块声明的最小内存随之暴涨（非 ASan ~64MB，
     # ASan 实测需 ~843MB）。该值必须 >= wasm 声明的 min，否则 JS 创建的 Memory 页数
     # 小于导入声明 → LinkError（memory import has N pages < declared initial of M）。
-    # 此变量同时驱动 ① 链接参数 -s INITIAL_MEMORY ② shell.html 预分配的
-    # WebAssembly.Memory（iOS Safari 兼容路径，见 platforms/web/shell.html 经
-    # configure_file @ONLY 注入 @KRKR2_WEB_INITIAL_MEMORY@），两者必须一致。
-    # ASan 取 1GB：> emscripten 在 512MB 下二次上调出的 843MB，使链接器不再上调，
-    # 从而 link flag == wasm min == shell 预分配三者相等。
+    # 此变量同时驱动链接请求值和 shell.html 的预分配初值（iOS Safari 兼容路径）。
+    # ASan 请求 1 GiB，但链接器仍可能按静态数据与影子内存上调实际最小内存；
+    # 6.0.9 当前构建约为 1.29 GiB。链接后的 sync_prealloc_memory.cmake 会从
+    # index.js 读取实际默认值并更新 shell，不能假定链接请求值就是 wasm min。
     if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND KRKR2_WEB_DEBUG_ENABLE_ASAN)
         set(KRKR2_WEB_INITIAL_MEMORY 1073741824)  # 1 GiB
     else()
@@ -120,6 +119,11 @@ elseif(WEB)
         "SHELL:-s MAX_WEBGL_VERSION=2"
         "SHELL:-s FULL_ES2=1"
         "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        # Declare this explicitly so 6.0.9 retains Module.wasmMemory and
+        # Module.INITIAL_MEMORY before it derives imported memory from -pthread.
+        # shell.html supplies the shared memory; sync_prealloc_memory.cmake
+        # reads the generated INITIAL_MEMORY fallback after linking.
+        "SHELL:-s IMPORTED_MEMORY=1"
         # 见上方 KRKR2_WEB_INITIAL_MEMORY 注释（ASan 1GB / 非 ASan 64MB）。
         "SHELL:-s INITIAL_MEMORY=${KRKR2_WEB_INITIAL_MEMORY}"
         "SHELL:-s STACK_SIZE=2097152"
@@ -133,8 +137,10 @@ elseif(WEB)
         # VirtualLazyFS: 主线程文件读经 JSPI 挂起等待 JS 异步供数
         # （Chromium 137+ / WebKit 26.4+，即 Safari 27 beta；EM_ASYNC_JS 导入
         # 自动包 WebAssembly.Suspending）。
-        # krkr2_main_loop_tick 是唯一可挂起的 wasm 入口（cocos 主循环 tick，
-        # 见 vcpkg cocos2dx patch CCApplication-emscripten.cpp）：glue 的
+        # krkr2_main_loop_tick 是项目显式加入 JSPI_EXPORTS 的入口（cocos 主循环
+        # tick，见 vcpkg cocos2dx patch CCApplication-emscripten.cpp）。Emscripten
+        # 6.0.9 还会自动加入 main/__main_argc_argv，并单独用 promising 包装
+        # pthread 入口；其它 JS 回调入口是否可挂起仍需逐条检查。glue 的
         # getWasmTableEntry 会给"同时是 JSPI_EXPORTS 导出"的函数指针表项
         # 包 WebAssembly.promising。该识别靠函数对象身份比较，JSC 不满足
         # table.get/export 身份等价，需用户库覆盖 set_main_loop_arg 兜底，

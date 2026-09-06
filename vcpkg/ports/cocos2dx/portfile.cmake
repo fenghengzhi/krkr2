@@ -23,6 +23,7 @@ vcpkg_extract_source_archive(
     SOURCE_BASE "${COCOS2D_VERSION}"
     PATCHES
         patch/0001-add-cstdint-header.patch
+        patch/fix-emscripten-platform-macro.patch
         patch/fix-iconv-cast.patch
         patch/fix-mac-audio-build.patch
         patch/fix-mac-glew.patch

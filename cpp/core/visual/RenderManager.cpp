@@ -33,7 +33,7 @@ extern "C" {
 #include "lz4.h"
 #include <spdlog/spdlog.h>
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
@@ -45,7 +45,7 @@ TVP_GL_FUNC_DECL(void, TVPAlphaBlend_d_c,
 
 namespace {
 bool lowLevelLogoTraceEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
     return EM_ASM_INT({
                try {
                    if(typeof window !== 'undefined' &&

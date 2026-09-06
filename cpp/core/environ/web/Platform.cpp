@@ -1,6 +1,6 @@
 #include "Platform.h"
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 
 #include <cstdio>
 #include <cstdlib>

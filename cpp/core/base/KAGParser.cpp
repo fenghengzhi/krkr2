@@ -22,7 +22,7 @@
 #include <string>
 #include <utility>
 #include <spdlog/spdlog.h>
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
@@ -79,7 +79,7 @@ static tjs_int32 ClassID_KAGParser = -1;
 
 namespace {
     bool TVPKAGLogoChainTraceEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
         return EM_ASM_INT({
             try {
                 if(typeof window !== 'undefined' &&

@@ -12,7 +12,7 @@
 #include "tjsCommHead.h"
 
 #include <algorithm>
-#if defined(EMSCRIPTEN) &&                                             \
+#if defined(__EMSCRIPTEN__) &&                                             \
     defined(TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE) &&              \
     TVP_ENABLE_WCHAIN_CONTINUOUS_EVENT_TRACE
 #include <string>

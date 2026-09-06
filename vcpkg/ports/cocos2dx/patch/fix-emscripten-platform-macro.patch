@@ -1,0 +1,12 @@
+diff --git a/cocos/platform/CCPlatformConfig.h b/cocos/platform/CCPlatformConfig.h
+--- a/cocos/platform/CCPlatformConfig.h
++++ b/cocos/platform/CCPlatformConfig.h
+@@ -112,7 +112,7 @@
+ #endif
+ 
+ // Emscripten
+-#if defined(EMSCRIPTEN)
++#if defined(__EMSCRIPTEN__)
+     #undef  CC_TARGET_PLATFORM
+     #define CC_TARGET_PLATFORM     CC_PLATFORM_EMSCRIPTEN
+ #endif

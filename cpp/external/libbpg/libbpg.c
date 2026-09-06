@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <math.h>
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
@@ -35,7 +35,7 @@
    - USE_PRED : support of animations 
 */
    
-#ifndef EMSCRIPTEN
+#ifndef __EMSCRIPTEN__
 #define USE_RGB48 /* support all pixel formats */
 //#define DEBUG
 #endif
@@ -1907,7 +1907,7 @@ void bpg_decoder_close(BPGDecoderContext *s)
 
 void bpg_decoder_free_extension_data(BPGExtensionData *first_md)
 {
-#ifndef EMSCRIPTEN
+#ifndef __EMSCRIPTEN__
     BPGExtensionData *md, *md_next;
     
     for(md = first_md; md != NULL; md = md_next) {
@@ -1918,7 +1918,7 @@ void bpg_decoder_free_extension_data(BPGExtensionData *first_md)
 #endif
 }
 
-#ifndef EMSCRIPTEN
+#ifndef __EMSCRIPTEN__
 void bpg_decoder_keep_extension_data(BPGDecoderContext *s, int enable)
 {
     s->keep_extension_data = enable;

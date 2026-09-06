@@ -18,7 +18,7 @@ Chrome, Edge, Firefox, Safari (any browser with WebAssembly + SharedArrayBuffer 
 
 ### Prerequisites
 
-- [Emscripten SDK (emsdk)](https://emscripten.org/docs/getting_started/downloads.html)
+- [Emscripten SDK (emsdk)](https://emscripten.org/docs/getting_started/downloads.html) **6.0.9** (pinned in CI)
 - [vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started)
 - [ninja](https://github.com/ninja-build/ninja/releases)
 - [cmake 3.31.1+](https://cmake.org/download/)
@@ -29,12 +29,26 @@ Chrome, Edge, Firefox, Safari (any browser with WebAssembly + SharedArrayBuffer 
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
+/path/to/emsdk/emsdk install 6.0.9
+/path/to/emsdk/emsdk activate 6.0.9
 source /path/to/emsdk/emsdk_env.sh   # sets EMSDK automatically
 ```
 
 ### Build Steps
 
-> **Note**: Only Release builds are supported. Debug builds will crash with a stack overflow due to Asyncify instrumentation on the TJS compiler's recursive descent parser.
+After changing SDK versions, use a fresh build directory and rebuild all dependencies. Emscripten does not guarantee ABI compatibility across versions.
+
+Prewarm the ports before configuring (vcpkg also compiles against these headers):
+
+```bash
+embuilder build libpng libpng-mt libpng-legacysjlj libpng-mt-legacysjlj
+embuilder build freetype freetype-legacysjlj
+embuilder build harfbuzz harfbuzz-mt
+embuilder build sdl2 sdl2-mt
+embuilder build sdl2_ttf sdl2_ttf-mt
+```
+
+Both Release and Debug are supported; the Web build uses JSPI. For Debug, use the `Web Debug Config` preset and `out/web/debug`.
 
 ```bash
 cmake --preset "Web Release Config"
@@ -48,14 +62,16 @@ out/web/release/
   index.html
   index.js
   index.wasm
-  index.data
-  index.worker.js
+  vlfs.js
+  assets.zip
   manifest.webmanifest
   sw.js
   pwa/
     icon-192.png
     icon-512.png
 ```
+
+Additional files such as `index.worker.js` depend on the SDK and build options.
 
 The build also copies **PWA** assets (`manifest.webmanifest`, `sw.js`, `pwa/*.png`) next to `index.html`. After serving over `localhost` or HTTPS with COOP/COEP (e.g. `coi-server.py`), Chromium-based browsers can offer **Install app**; the service worker uses network-only fetch so engine files are not stale-cached.
 

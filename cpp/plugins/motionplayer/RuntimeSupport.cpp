@@ -15,7 +15,7 @@
 
 #include <spdlog/spdlog.h>
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
@@ -298,7 +298,7 @@ namespace motion::detail {
         }
 
         bool logoTraceQueryEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
             return EM_ASM_INT({
                 try {
                     if(typeof window !== 'undefined' &&
@@ -328,7 +328,7 @@ namespace motion::detail {
         }
 
         bool logoSnapshotQueryEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
             return EM_ASM_INT({
                 try {
                     const params = new URLSearchParams(window.location.search);

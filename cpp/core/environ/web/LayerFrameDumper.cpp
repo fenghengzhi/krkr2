@@ -1,6 +1,6 @@
 #include "LayerFrameDumper.h"
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 
 #include <cstdio>
 #include <string>

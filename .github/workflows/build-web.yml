@@ -22,7 +22,7 @@ on:
       - 'dev/*'
 
 env:
-  EMSDK_VERSION: "4.0.23"
+  EMSDK_VERSION: "6.0.9"
 
 jobs:
   build-web:
@@ -107,6 +107,15 @@ jobs:
         with:
           key: ${{ github.job }}
 
+      - name: Pre-build Emscripten ports
+        run: |
+          # Explicit variants avoid the 6.0.9 libpng/FreeType ports passing True as a boolean flag.
+          embuilder build libpng libpng-mt libpng-legacysjlj libpng-mt-legacysjlj
+          embuilder build freetype freetype-legacysjlj
+          embuilder build harfbuzz harfbuzz-mt
+          embuilder build sdl2 sdl2-mt
+          embuilder build sdl2_ttf sdl2_ttf-mt
+
       - name: Configure CMake
         run: |
           set -o pipefail
@@ -136,10 +145,6 @@ jobs:
           done
 
           exit "$configure_status"
-
-      - name: Pre-build Emscripten ports
-        run: |
-          embuilder build sdl2 sdl2_ttf sdl2-mt sdl2_ttf-mt
 
       - name: Build
         run: |

@@ -57,13 +57,13 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
 namespace {
     bool TVPScriptLogoTraceEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
         return EM_ASM_INT({
             try {
                 if(typeof window !== 'undefined' &&

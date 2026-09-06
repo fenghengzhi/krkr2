@@ -6,7 +6,7 @@ on:
     branches: [web]
 
 env:
-  EMSDK_VERSION: "4.0.23"
+  EMSDK_VERSION: "6.0.9"
   WASMTIME_VERSION: "48.0.0"
 
 jobs:
@@ -53,7 +53,7 @@ jobs:
           & "$env:EMSDK\emsdk.bat" install $env:EMSDK_VERSION
           & "$env:EMSDK\emsdk.bat" activate $env:EMSDK_VERSION
           "EM_CONFIG=$env:EMSDK\.emscripten" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "EMXX=em++.bat" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "EMXX=em++.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
           $env:EMSDK | Out-File -FilePath $env:GITHUB_PATH -Append
           "$env:EMSDK\upstream\emscripten" | Out-File -FilePath $env:GITHUB_PATH -Append
           "$env:EMSDK\upstream\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
@@ -64,7 +64,7 @@ jobs:
           python --version
           wasmtime --version
           if [ "${RUNNER_OS}" = "Windows" ]; then
-            em++.bat --version | head -n 2
+            em++.exe --version | head -n 2
           else
             em++ --version | head -n 2
           fi

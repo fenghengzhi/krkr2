@@ -84,7 +84,7 @@ static Label *_fpsLabel = nullptr;
 
 namespace {
 bool lowLevelLogoTraceEnabled() {
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
     return EM_ASM_INT({
                try {
                    if(typeof window !== 'undefined' &&

@@ -18,7 +18,7 @@ Chrome、Edge、Firefox、Safari（任何支持 WebAssembly + SharedArrayBuffer 
 
 ### 依赖工具
 
-- [Emscripten SDK (emsdk)](https://emscripten.org/docs/getting_started/downloads.html)
+- [Emscripten SDK (emsdk)](https://emscripten.org/docs/getting_started/downloads.html) **6.0.9**（与 CI 固定版本一致）
 - [vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started)
 - [ninja](https://github.com/ninja-build/ninja/releases)
 - [cmake 3.31.1+](https://cmake.org/download/)
@@ -29,12 +29,26 @@ Chrome、Edge、Firefox、Safari（任何支持 WebAssembly + SharedArrayBuffer 
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
+/path/to/emsdk/emsdk install 6.0.9
+/path/to/emsdk/emsdk activate 6.0.9
 source /path/to/emsdk/emsdk_env.sh   # 自动设置 EMSDK
 ```
 
 ### 编译步骤
 
-> **注意**：仅支持 Release 构建。Debug 构建会因 Asyncify 对 TJS 编译器递归下降解析器的插桩导致栈溢出崩溃。
+切换 SDK 版本后，应使用新的构建目录并重新编译所有依赖。Emscripten 不保证跨版本 ABI 兼容。
+
+配置前先预编译端口库（vcpkg 构建也会使用这些头文件）：
+
+```bash
+embuilder build libpng libpng-mt libpng-legacysjlj libpng-mt-legacysjlj
+embuilder build freetype freetype-legacysjlj
+embuilder build harfbuzz harfbuzz-mt
+embuilder build sdl2 sdl2-mt
+embuilder build sdl2_ttf sdl2_ttf-mt
+```
+
+Web 构建使用 JSPI，支持 Release 和 Debug。Debug 使用 `Web Debug Config` preset，输出目录为 `out/web/debug`。
 
 ```bash
 cmake --preset "Web Release Config"
@@ -48,9 +62,11 @@ out/web/release/
   index.html
   index.js
   index.wasm
-  index.data
-  index.worker.js
+  vlfs.js
+  assets.zip
 ```
+
+`index.worker.js` 等额外文件取决于 SDK 版本和构建选项。
 
 ---
 
