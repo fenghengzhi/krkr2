@@ -86,10 +86,17 @@ if(ANDROID)
     find_package(unofficial-breakpad CONFIG REQUIRED)
     target_link_libraries(${PROJECT_NAME} PUBLIC unofficial::breakpad::libbreakpad_client)
 elseif(WEB)
-    add_executable(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/main.cpp)
+    if(NOT EMSCRIPTEN_VERSION VERSION_EQUAL "6.0.9")
+        message(FATAL_ERROR
+            "Web pthread JSPI targets Emscripten 6.0.9; review its SDK lifecycle hooks before upgrading")
+    endif()
+    add_executable(${PROJECT_NAME}
+        ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/main.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/pthread_jspi.c)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "index" SUFFIX ".html")
     set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/jspi_jsc_mainloop_fix.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/pthread_jspi.js
         ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/vlfs.js
         ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/version_web_entrypoint.cmake)
     # WebAssembly.Memory 初始大小。ASan 的影子内存（覆盖整个地址空间的 1/8）+
@@ -105,14 +112,10 @@ elseif(WEB)
     else()
         set(KRKR2_WEB_INITIAL_MEMORY 67108864)    # 64 MiB
     endif()
-    # 浏览器主线程不能同步等待一个新 Worker 完成启动。线程池耗尽后，Emscripten
-    # 只能让 pthread 延迟进入入口；这与 Android pthread_create 返回时线程上下文
-    # 已建立的边界不同。DRACU-RIOT! 在标题切剧情时实测会越过 24 个 Worker，
-    # 延迟入口随后在 std::thread 入口 thunk 的状态虚调用（call_indirect）崩溃。
-    # 64 同时作为 Debug/Release 默认值，确保应用线程仍走预创建 Worker；保留 cache
-    # 变量便于诊断更大游戏的并发上限，而不是让 Release 使用不同的生命周期语义。
-    set(KRKR2_WEB_PTHREAD_POOL_SIZE "64" CACHE STRING
-        "Pre-created Emscripten pthread workers (must cover peak live threads)")
+    # Worker 按需初始化：主线程创建时经 JSPI 等待，后台 pthread 经异步代理
+    # 等待。已就绪 Worker 仍同步复用；此值只控制可选预热，不再要求覆盖峰值。
+    set(KRKR2_WEB_PTHREAD_POOL_SIZE "0" CACHE STRING
+        "Optional pre-warmed Emscripten pthread workers")
     target_link_options(${PROJECT_NAME} PRIVATE
         "SHELL:-s USE_SDL=2"
         "SHELL:-s USE_SDL_TTF=2"
@@ -148,6 +151,10 @@ elseif(WEB)
         "SHELL:-s JSPI=1"
         "SHELL:-s JSPI_EXPORTS=['krkr2_main_loop_tick']"
         "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/jspi_jsc_mainloop_fix.js"
+        "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/platforms/web/pthread_jspi.js"
+        -Wl,--wrap=pthread_create
+        -Wl,--wrap=__pthread_create
+        -Wl,--wrap=emscripten_builtin_pthread_create
         -fwasm-exceptions
         $<$<BOOL:${KRKR2_WEB_ENABLE_SOURCE_MAP}>:-gsource-map>
         $<$<CONFIG:Debug>:--emit-symbol-map>
