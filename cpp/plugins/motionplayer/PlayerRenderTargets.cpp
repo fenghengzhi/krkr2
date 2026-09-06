@@ -1089,6 +1089,13 @@ namespace motion {
         // coercing the target. It owns the dispatch across target-size reads,
         // the submit loop and final setClip(argc=0), and dies after the target
         // object owner.
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        // Match the complete Canvas envelope, including command construction
+        // and normal destruction of the two function-local accessors.
+        detail::MotionTraceRenderExecuteScope renderTrace(
+            this, target.Type() == tvtObject ? target.AsObjectNoAddRef() : nullptr,
+            true, mainList);
+#endif
         ncbPropAccessor layerClass{TJS_W("Layer")};
         iTJSDispatch2 *layerClassObject = layerClass.GetDispatch();
 
@@ -1127,6 +1134,9 @@ namespace motion {
         executeLayerRenderCommands(
             layerClassObject, renderLayerObject, canvasWidth, canvasHeight,
             true, mainList);
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        renderTrace.setResult(true);
+#endif
     }
 
     void Player::renderToSeparateLayerAdaptor(SeparateLayerAdaptor *sla) {
@@ -1162,7 +1172,8 @@ namespace motion {
                     }
                 } accurateSlaRenderTrace{this, renderTraceTarget};
                 detail::MotionTraceRenderExecuteScope renderTrace(
-                    this, renderTraceTarget, false, mainList);
+                    this, renderTraceTarget, false, mainList,
+                    "Player.renderAccurateSeparateLayerAdaptor");
                 renderAccurateSeparateLayerAdaptor_guess(
                     sla, mainList, auxList);
                 renderTrace.setResult(true);

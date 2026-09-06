@@ -19,17 +19,24 @@ namespace motion::detail {
     public:
         MotionTraceProgressScope(Player *player, void *objthis);
         ~MotionTraceProgressScope();
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        void setDeltaMs(double deltaMs);
+#endif
 
         MotionTraceProgressScope(const MotionTraceProgressScope &) = delete;
         MotionTraceProgressScope &operator=(const MotionTraceProgressScope &) = delete;
 
     private:
         Player *_player = nullptr;
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        void *_capture = nullptr;
+#endif
     };
 
     void motionTraceRecordUpdatePlayer(Player *player);
 
 #if defined(KRKR2_WASMTIME_HEADLESS)
+    void motionTraceSnapshotPhase3(Player *player);
     class MotionTraceRenderDrawScope {
     public:
         MotionTraceRenderDrawScope(Player *player, void *argVariant,
@@ -75,7 +82,8 @@ namespace motion::detail {
     public:
         MotionTraceRenderExecuteScope(Player *player, void *renderLayerObject,
                                       bool skipUpdate,
-                                      const std::vector<PreparedRenderItem *> &mainList);
+                                      const std::vector<PreparedRenderItem *> &mainList,
+                                      const char *boundary = "Player.renderToCanvas");
         ~MotionTraceRenderExecuteScope();
 
         MotionTraceRenderExecuteScope(const MotionTraceRenderExecuteScope &) = delete;
@@ -88,6 +96,7 @@ namespace motion::detail {
         void *_renderLayerObject = nullptr;
         bool _skipUpdate = false;
         bool _ok = false;
+        const char *_boundary = nullptr;
         const std::vector<PreparedRenderItem *> *_mainList = nullptr;
     };
 

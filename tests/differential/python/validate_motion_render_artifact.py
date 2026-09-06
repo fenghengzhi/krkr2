@@ -176,6 +176,9 @@ def validate_events(
                     f"{path}[{index}]: event source mismatch")
             require(isinstance(event.get("schema"), str),
                     f"{path}[{index}]: event schema missing")
+            if stage in DEFAULT_REQUIRED_STAGES:
+                require(event.get("captureContract") == "motion-render-boundaries-v1",
+                        f"{path}[{index}]: missing capture contract; re-record artifact")
             frame_id = event.get("frameId")
             require(isinstance(frame_id, int) and
                     0 <= frame_id < case_frames[case_id],

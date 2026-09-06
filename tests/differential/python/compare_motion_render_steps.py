@@ -66,6 +66,54 @@ EXPECTED_STAGE_KIND_SEQUENCES = {
 }
 COMPARABLE_EXECUTE_KINDS = frozenset(
     EXPECTED_STAGE_KIND_SEQUENCES["render_execute"])
+RENDER_CAPTURE_CONTRACT = "motion-render-boundaries-v1"
+EXECUTE_BOUNDARIES = frozenset((
+    "Player.renderToCanvas", "Player.renderAccurateSeparateLayerAdaptor",
+))
+
+
+def capture_boundary_sequences(
+    stages: dict[str, list[dict[str, Any]]],
+) -> dict[int, list[tuple[str, str, str | None]]]:
+    """Recover interleaved call boundaries, independently of native addresses."""
+    merged = []
+    seen_seq: set[tuple[int, int]] = set()
+    for stage, events in stages.items():
+        for event in events:
+            if event.get("captureContract") != RENDER_CAPTURE_CONTRACT:
+                raise ValueError(f"{stage}: missing capture contract; re-record artifact")
+            seq, frame_id = event.get("seq"), event.get("frameId")
+            if type(seq) is not int or type(frame_id) is not int or \
+                    (frame_id, seq) in seen_seq:
+                raise ValueError(f"{stage}: invalid/duplicate sequence or frame identity")
+            # The guest drains its buffer after each host tick and may restart
+            # sequence numbers. Only order within the same frame is compared.
+            seen_seq.add((frame_id, seq))
+            boundary = event.get("executeBoundary") if stage == "render_execute" else None
+            if stage == "render_execute":
+                if boundary not in EXECUTE_BOUNDARIES:
+                    raise ValueError("render_execute: missing or unknown executeBoundary")
+                suffix = ".enter" if event["kind"] == "execute_enter" else ".leave"
+                if event.get("samplePoint") != boundary + suffix:
+                    raise ValueError("render_execute: samplePoint does not match executeBoundary")
+            merged.append((frame_id, seq, stage, event["kind"], boundary))
+    out: dict[int, list[tuple[str, str, str | None]]] = {}
+    for frame_id, _, stage, kind, boundary in sorted(merged):
+        out.setdefault(frame_id, []).append((stage, kind, boundary))
+    for frame_id, sequence in out.items():
+        execute_stack: list[str | None] = []
+        for stage, kind, boundary in sequence:
+            if kind == "execute_enter":
+                execute_stack.append(boundary)
+            elif kind == "execute_leave":
+                if not execute_stack or execute_stack.pop() != boundary:
+                    raise ValueError(f"frame {frame_id}: unmatched execute boundary")
+            elif kind in ("build_commands_enter", "build_commands_leave") and \
+                    not execute_stack:
+                raise ValueError(f"frame {frame_id}: command construction outside execute envelope")
+        if execute_stack:
+            raise ValueError(f"frame {frame_id}: incomplete execute envelope")
+    return out
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -525,6 +573,32 @@ def compare_case(
             f"{case_id}.wasmtime.json"))
 
     first_mismatch: tuple[int, str, str, Any, Any] | None = None
+    boundary_sequences = {}
+    for side, prepare, commands, execute in (
+        ("oracle", oracle_prepare_events, oracle_command_events, oracle_execute_events),
+        ("wasmtime", wasmtime_prepare_events, wasmtime_command_events, wasmtime_execute_events),
+    ):
+        try:
+            boundary_sequences[side] = capture_boundary_sequences({
+                "render_prepare": prepare, "render_commands": commands,
+                "render_execute": execute,
+            })
+        except ValueError as exc:
+            first_mismatch = (
+                0, "sampling_contract", "capture_boundaries",
+                str(exc) if side == "oracle" else None,
+                str(exc) if side == "wasmtime" else None,
+            )
+    if first_mismatch is None:
+        oracle_boundaries = boundary_sequences["oracle"]
+        wasmtime_boundaries = boundary_sequences["wasmtime"]
+        for index, frame_id in enumerate(sorted(set(oracle_boundaries) | set(wasmtime_boundaries))):
+            if oracle_boundaries.get(frame_id) != wasmtime_boundaries.get(frame_id):
+                first_mismatch = (
+                    index, "sampling_contract", "interleaved_boundaries",
+                    oracle_boundaries.get(frame_id), wasmtime_boundaries.get(frame_id),
+                )
+                break
     render_prepare_shape_mismatches = 0
     render_commands_shape_mismatches = 0
     render_execute_shape_mismatches = 0

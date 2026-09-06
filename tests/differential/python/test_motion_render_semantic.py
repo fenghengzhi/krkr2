@@ -144,6 +144,17 @@ class MotionRenderSemanticTests(unittest.TestCase):
             {"frameId": 0, "kind": "execute_enter"},
             {"frameId": 0, "kind": "execute_leave"},
         ]
+        # Real envelope: prepared-item construction belongs inside prepare;
+        # command construction belongs inside execute.
+        ordered = [prepare[0], *commands[:2], *prepare[1:],
+                   execute[0], *commands[2:], execute[1]]
+        for seq, event in enumerate(ordered):
+            event["seq"] = seq
+            event["captureContract"] = render_compare.RENDER_CAPTURE_CONTRACT
+        for event in execute:
+            event["executeBoundary"] = "Player.renderToCanvas"
+            event["samplePoint"] = "Player.renderToCanvas." + (
+                "enter" if event["kind"] == "execute_enter" else "leave")
         for artifact, suffix in ((oracle, "oracle"),
                                  (wasmtime, "wasmtime")):
             self._write_events(
@@ -181,6 +192,54 @@ class MotionRenderSemanticTests(unittest.TestCase):
                 expected_frames=1,
                 semantic_only=True,
             ))
+
+    def test_command_build_crossing_execute_boundary_fails(self) -> None:
+        temp, oracle, wasmtime = self._artifact_pair()
+        with temp:
+            path = wasmtime / "events/render_execute/case.wasmtime.json"
+            payload = json.loads(path.read_text())
+            # Keep both per-stage kind sequences intact; move only enter to
+            # after command construction, reproducing the old inner scope.
+            payload["events"][0]["seq"] = 100
+            payload["events"][1]["seq"] = 101
+            path.write_text(json.dumps(payload))
+            self.assertFalse(render_compare.compare_case(
+                oracle, wasmtime, "case", expected_frames=1,
+                allow_render_flow_diagnostics=True, semantic_only=True))
+
+    def test_sequence_numbers_can_restart_in_a_later_frame(self) -> None:
+        events = [{
+            "frameId": frame, "seq": 0, "kind": "prepare_enter",
+            "captureContract": render_compare.RENDER_CAPTURE_CONTRACT,
+        } for frame in (0, 1)]
+        sequences = render_compare.capture_boundary_sequences({
+            "render_prepare": events,
+        })
+        self.assertEqual(sequences[0], sequences[1])
+        with self.assertRaisesRegex(ValueError, "duplicate sequence"):
+            render_compare.capture_boundary_sequences({
+                "render_prepare": [events[0], events[0]],
+            })
+
+    def test_missing_boundary_protocol_requires_recapture(self) -> None:
+        temp, oracle, wasmtime = self._artifact_pair()
+        with temp:
+            for root, suffix in ((oracle, "oracle"), (wasmtime, "wasmtime")):
+                path = root / f"events/render_execute/case.{suffix}.json"
+                payload = json.loads(path.read_text())
+                del payload["events"][0]["captureContract"]
+                path.write_text(json.dumps(payload))
+            self.assertFalse(render_compare.compare_case(
+                oracle, wasmtime, "case", expected_frames=1, semantic_only=True))
+
+    def test_command_construction_requires_the_outer_execute_envelope(self) -> None:
+        with self.assertRaisesRegex(ValueError, "outside execute envelope"):
+            render_compare.capture_boundary_sequences({
+                "render_commands": [{
+                    "frameId": 0, "seq": 0, "kind": "build_commands_enter",
+                    "captureContract": render_compare.RENDER_CAPTURE_CONTRACT,
+                }],
+            })
 
     def test_validator_accepts_explicit_empty_semantic_image_envelope(
         self,

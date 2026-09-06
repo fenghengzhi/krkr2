@@ -71,6 +71,7 @@ const INIT_MOTION_SAMPLE_POINTS = {
 
 const TRACE_FLATTEN_PROJECTION = 'trace_flatten-semantic-v1';
 const TRACE_FLATTEN_SAMPLE_POINT = 'progressCompat.phase3-end.pre-cleanup';
+const TRACE_FLATTEN_SAMPLE_ORDER = 'phase3-return-order';
 const TRACE_FLATTEN_MAX_NODES = 512;
 const TRACE_FLATTEN_ABS_FLOAT_LIMIT = 1000000.0;
 const FRAME_SELECTION_SPEC = __FRAME_SELECTION_PROJECTION_JSON__;
@@ -158,6 +159,7 @@ let hooked = false;
 let recording = false;
 let events = [];
 let frameCounter = 0;
+let nextFrameId = 0;
 let seqCounter = 0;
 let startTimeMs = 0;
 let enabledStages = new Set(ALL_STAGES);
@@ -169,6 +171,7 @@ let inCompat = false;
 let samplesInFrame = [];
 let capturedObjthis = null;
 let currentFrameId = null;
+let capturedDeltaMs = null;
 let lastCompletedFrameId = null;
 let lastCompletedTopPlayer = null;
 let currentRenderFrameId = null;
@@ -1925,9 +1928,18 @@ function emitRender(stage, kind, semanticPayload, diagnostics, samplePoint) {
     const diag = diagnostics || {};
     const ev = semanticPayload || {};
     ev.schema = 'motion-render-stage-oracle-v1-event';
+    ev.captureContract = 'motion-render-boundaries-v1';
     ev.stage = stage;
     ev.kind = kind;
     ev.samplePoint = samplePoint || kind;
+    if (stage === STAGE_RENDER_EXECUTE &&
+        (kind === 'execute_enter' || kind === 'execute_leave')) {
+        ev.executeBoundary = ev.accurateSla === true
+            ? 'Player.renderAccurateSeparateLayerAdaptor'
+            : 'Player.renderToCanvas';
+        ev.samplePoint = ev.executeBoundary +
+            (kind === 'execute_enter' ? '.enter' : '.leave');
+    }
     ev.frameId = frameId;
     ev.player = ptrHex(player);
     ev.diagnostics = diag;
@@ -3043,17 +3055,39 @@ function leaveAccurateSlaRenderExecute(ctx, retval) {
 function installTraceFlattenHooks() {
     attachAt(PLAYER_PROGRESS_COMPAT_OFF, 'Player_progressCompat', {
         onEnter(args) {
+            if (!recording) return;
+            this.previousCapture = {
+                inCompat, samplesInFrame, capturedObjthis,
+                currentFrameId, capturedDeltaMs,
+            };
             inCompat = true;
             samplesInFrame = [];
             capturedObjthis = args[3];
-            currentFrameId = frameCounter;
+            currentFrameId = nextFrameId++;
+            capturedDeltaMs = null;
+            // The fixture supplies a numeric interval. Observe its raw value;
+            // never invoke a second TJS conversion from the hook.
+            if (readArgInt(args[1]) > 0) {
+                const arg = readVariantArg(args[2], 0);
+                if (arg.scalar && arg.scalar.type === 5) {
+                    capturedDeltaMs = arg.scalar.double;
+                } else if (arg.scalar && arg.scalar.type === 4) {
+                    capturedDeltaMs = arg.variant.readS64().toNumber();
+                }
+            }
         },
         onLeave() {
+            if (!this.previousCapture) return;
+            const restoreCapture = () => {
+                ({ inCompat, samplesInFrame, capturedObjthis,
+                   currentFrameId, capturedDeltaMs } = this.previousCapture);
+            };
             const objthis = capturedObjthis;
             const samples = samplesInFrame;
+            const deltaMs = capturedDeltaMs;
             const completedFrameId = currentFrameId;
             const completedTopPlayer =
-                samples.length > 0 ? samples[0].player : capturedObjthis;
+                samples.length > 0 ? samples[samples.length - 1].player : null;
             inCompat = false;
             capturedObjthis = null;
             currentFrameId = null;
@@ -3065,7 +3099,7 @@ function installTraceFlattenHooks() {
             lastSlaRenderNativeLayer = null;
 
             if (!recording || !stageEnabled(STAGE_TRACE_FLATTEN)) {
-                samplesInFrame = [];
+                restoreCapture();
                 return;
             }
 
@@ -3095,20 +3129,23 @@ function installTraceFlattenHooks() {
             emit(STAGE_TRACE_FLATTEN, 'frame', {
                 projection: TRACE_FLATTEN_PROJECTION,
                 samplePoint: TRACE_FLATTEN_SAMPLE_POINT,
+                sampleOrder: TRACE_FLATTEN_SAMPLE_ORDER,
+                deltaMs,
+                playerLayerCounts: samples.map(sample => sample.layers.length),
                 frameId: completedFrameId,
                 playerCount: samples.length,
                 layers: flatLayers,
                 diagnostics: {
                     objthis: objthis ? objthis.toString() : null,
                     topPlayer: samples.length > 0
-                        ? samples[0].player.toString() : null,
+                        ? samples[samples.length - 1].player.toString() : null,
                     layout: layoutTag,
                     players: diagnosticPlayers,
                     error: walkError,
                 },
             });
             frameCounter++;
-            samplesInFrame = [];
+            restoreCapture();
         },
     });
 
@@ -4014,6 +4051,7 @@ rpc.exports = {
         }
         events = [];
         frameCounter = 0;
+        nextFrameId = 0;
         seqCounter = 0;
         startTimeMs = Date.now();
         lastCompletedFrameId = null;

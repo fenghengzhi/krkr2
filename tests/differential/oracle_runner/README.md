@@ -39,7 +39,7 @@ pixel output.
 | `position_interp` | **✓ 5/5** | — | `sub_69A4D4` (0x69A4D4). Adapter had `src_addr`/`dst_addr` wired into a2/a3 — libkrkr2's convention (matching port's `interpolatePosition69A4D4` signature) is a2=dst (returned at t=1), a3=src (returned at t=0). `rotation_coord*` specs dropped — empty `segments` arrays SIGSEGV inside libkrkr2's `sub_698454` (latent libkrkr2 bug, never hit by real assets); port's defensive sanitisation is intentionally non-matching |
 | `psbfile_load` | committed raw PSB or existing reference material | — | Directly invokes `PSBFile.load(octet)` (0x598268), verifies the 0x68 raw owner and strict header refresh (0x598960); optional `--storage` covers 0x598538. Natural value modes cover integer tags 0x04..0x09, Real tags 0x1D..0x1F, String tags 0x15/0x16, Null, Array, and Dictionary through public TJS dispatch and raw getters/classification. `--shape-boundary` additionally verifies hidden-sret raw `GetRoot`/`Transfer`, raw Dictionary strict/non-strict/alias ownership, `NativeInstanceSupport`, the full 32-slot primary dispatch vtable, the secondary native lifecycle vtable, all 19 unsupported primary slots, `IsInstanceOf`, ordered value/no-value `EnumMembers`, dispatch/owner intrusive lifetimes, and invalidation edges; `--resource-boundary` verifies copied TJS Octet versus borrowed raw Resource. Media modes cover the exact 11-slot media vtable, intrusive reference/destructor boundaries, name normalization, replacement, borrowed-stream destruction, Dictionary order, and the null-adaptor boundary. `--trace` records the native call chains. No damaged fixture is generated or checked in |
 | `psb_rl_decompress` | — | — | RL loop is inlined in a 53 KB PSB loader; no standalone entry, no adapter |
-| `motion_playback` | fresh 1.3.9 libgame record + Wasmtime verify | — | Uses `STARTUP_FROM` to schedule the per-case `reference/xp3/logo_test_oracle_<case>_15hz.xp3` fixture inside libgame. Each captured frame advances exactly `1000/15` ms of simulation time; Frida hooks `Motion.Player.progress` / the phase-3 node evaluator to record `yuzulogo.mtn` and `m2logo.mtn`. The port-side verifier executes the same XP3/TJS path under Wasmtime. This is not yet a full visual oracle; see "Motion playback visual oracle status" below. |
+| `motion_playback` | fresh 1.3.9 libgame record + Wasmtime verify | — | Uses `STARTUP_FROM` to schedule the per-case `reference/xp3/logo_test_oracle_<case>_15hz.xp3` fixture inside libgame. The clock advances on a 15 Hz grid; script progress observes an initial zero delta and integer-ms intervals. Both recorders freeze node values after the final phase-3 helper and before cleanup, retaining observed deltas and sample order. The port verifier executes the same XP3/TJS path under Wasmtime. This is not yet a full visual oracle; see "Motion playback visual oracle status" below. |
 
 ## Motion playback visual oracle status
 
@@ -61,7 +61,7 @@ Current oracle-runner side status:
   deterministic wrappers around the `logo_test.xp3` playback path. They
   preserve the KAGParser `[ev]` / `[ev waitmovie]` boundary and drive
   `.mtn` playback through `AffineLayer` / `AffineSourceMotion` / `onPaint`,
-  advancing `1000/15` ms per captured simulation frame. The TJS/KAG sources
+  using a 15 Hz tick grid and the script's `tick - lastTick` delta. The TJS/KAG sources
   are versioned under `oracle_runner/fixtures/`; the large assets stay in the
   external `reference/xp3/logo_test` tree.
 - `FridaMotionTracer` attaches to the harness process and the in-process

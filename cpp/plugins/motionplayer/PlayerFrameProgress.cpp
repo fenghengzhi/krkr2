@@ -1292,9 +1292,6 @@ namespace {
     // references and this implementation; frameProgress does not clear it.
     void Player::progressFrames_guess(iTJSDispatch2 *currentDispatch,
                                       double frameDt) {
-#if defined(KRKR2_WASMTIME_HEADLESS)
-        detail::MotionTraceProgressScope traceScope(this, currentDispatch);
-#endif
         _currentDispatch = currentDispatch;
         frameProgress(frameDt);
         updateLayers();                         // unconditional in all four targets
@@ -1306,6 +1303,9 @@ namespace {
     tjs_error Player::progressCompatMethod(tTJSVariant *result, tjs_int numparams,
                                            tTJSVariant **param,
                                            iTJSDispatch2 *objthis) {
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        detail::MotionTraceProgressScope traceScope(nullptr, objthis);
+#endif
         // The legacy method object clears a non-null result before entering
         // this raw callback; the callback itself never writes it.
         (void)result;
@@ -1325,6 +1325,9 @@ namespace {
         // conversion exception preserves the previous raw dispatch slot, while
         // an exception in any downstream phase leaves objthis installed.
         const double delta = param[0]->AsReal();
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        traceScope.setDeltaMs(delta);
+#endif
         self->progressFrames_guess(
             objthis, (delta * 60.0) / 1000.0);
         return TJS_S_OK;

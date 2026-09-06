@@ -12,7 +12,10 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <iomanip>
+#include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -82,12 +85,31 @@ int g_wasmtime_tick_diag_ever_mask = 0;
 int g_wasmtime_window_count_peak = 0;
 constexpr const char *kRenderStageCaptureRoot = "/render_stage_capture";
 
-struct TraceState {
-    bool inProgress = false;
-    bool inRender = false;
+struct MotionLayerSample {
+    int nodeType;
+    int stencilType;
+    motion::detail::MotionNode::AccumulatedState accumulated;
+};
+
+struct MotionPlayerSample {
+    motion::Player *player;
+    std::vector<MotionLayerSample> layers;
+};
+
+struct ProgressCapture {
+    ProgressCapture *parent = nullptr;
     void *objthis = nullptr;
-    std::vector<motion::Player *> players;
+    int frameId = -1;
+    int exceptionsOnEntry = 0;
+    double deltaMs = std::numeric_limits<double>::quiet_NaN();
+    std::vector<MotionPlayerSample> samples;
+};
+
+struct TraceState {
+    ProgressCapture *progress = nullptr;
+    bool inRender = false;
     int frameCounter = 0;
+    int nextFrameId = 0;
     int lastCompletedFrameId = -1;
     motion::Player *lastCompletedTopPlayer = nullptr;
     void *lastCompletedRenderLayerObject = nullptr;
@@ -399,6 +421,7 @@ void appendRenderEventForFrame(int frameId,
     ev.reserve(payload.size() + diagnostics.size() + 256);
     ev += "{\"schema\":\"motion-render-stage-wasmtime-v1-event\"";
     ev += ",\"source\":\"wasmtime-port-render-stage\"";
+    ev += ",\"captureContract\":\"motion-render-boundaries-v1\"";
     ev += ",\"stage\":\"";
     ev += stage;
     ev += "\",\"kind\":\"";
@@ -1183,6 +1206,18 @@ void krkr2_wasm_motion_frame_begin(std::int32_t frameId,
     g_motion_trace_frame_json += ",\"playerCount\":";
     g_motion_trace_frame_json += std::to_string(playerCount);
     g_motion_trace_frame_json +=
+        ",\"samplePoint\":\"progressCompat.phase3-end.pre-cleanup\""
+        ",\"sampleOrder\":\"phase3-return-order\",\"deltaMs\":";
+    const auto &capture = *traceState().progress;
+    appendJsonDouble(g_motion_trace_frame_json, capture.deltaMs);
+    g_motion_trace_frame_json += ",\"playerLayerCounts\":[";
+    for(size_t i = 0; i < capture.samples.size(); ++i) {
+        if(i) g_motion_trace_frame_json.push_back(',');
+        g_motion_trace_frame_json +=
+            std::to_string(capture.samples[i].layers.size());
+    }
+    g_motion_trace_frame_json.push_back(']');
+    g_motion_trace_frame_json +=
         ",\"layout\":\"wasmtime-guest-trace\",\"layers\":[";
     g_motion_trace_first_layer = true;
 }
@@ -1257,7 +1292,7 @@ void krkr2_wasm_motion_frame_end(std::int32_t frameId) {
 
 void emitLayerSample(int frameId,
                      int flatIndex,
-                     const motion::detail::MotionNode &node) {
+                     const MotionLayerSample &node) {
     const auto &accum = node.accumulated;
     const std::uint64_t opacityBlend =
         (static_cast<std::uint64_t>(
@@ -1278,20 +1313,11 @@ void emitLayerSample(int frameId,
         accum.slantY);
 }
 
-void emitPlayerLayers(int frameId, int &flatIndex, motion::Player *player) {
-    if(!player) return;
-    const auto *runtime = player;
-    if(!runtime) return;
-    for(const auto &node : runtime->nodes()) {
-        emitLayerSample(frameId, flatIndex++, node);
-    }
-}
-
-void emitProgressSample(motion::Player *fallbackPlayer) {
+void emitProgressSample(const ProgressCapture &capture) {
     auto &state = traceState();
-    const int frameId = state.frameCounter++;
+    const int frameId = capture.frameId;
     motion::Player *topPlayer =
-        !state.players.empty() ? state.players.front() : fallbackPlayer;
+        capture.samples.empty() ? nullptr : capture.samples.back().player;
     state.lastCompletedFrameId = frameId;
     state.lastCompletedTopPlayer = topPlayer;
     state.lastCompletedRenderLayerObject = nullptr;
@@ -1303,19 +1329,17 @@ void emitProgressSample(motion::Player *fallbackPlayer) {
     state.lastPostDrawCanvasTexture = nullptr;
     state.lastPostDrawCanvasSamplePoint.clear();
     krkr2_wasm_motion_frame_begin(
-        frameId, state.objthis, topPlayer,
-        static_cast<std::int32_t>(state.players.size()));
+        frameId, capture.objthis, topPlayer,
+        static_cast<std::int32_t>(capture.samples.size()));
 
     int flatIndex = 0;
-    for(size_t i = 1; i < state.players.size(); ++i) {
-        emitPlayerLayers(frameId, flatIndex, state.players[i]);
-    }
-    if(!state.players.empty()) {
-        emitPlayerLayers(frameId, flatIndex, state.players.front());
-    } else {
-        emitPlayerLayers(frameId, flatIndex, fallbackPlayer);
+    for(const auto &sample : capture.samples) {
+        for(const auto &layer : sample.layers) {
+            emitLayerSample(frameId, flatIndex++, layer);
+        }
     }
     krkr2_wasm_motion_frame_end(frameId);
+    ++state.frameCounter;
 }
 
 template <typename Fn>
@@ -1376,11 +1400,10 @@ void resetState() {
     g_render_draw_id = 0;
     g_record_layer_raw_probes = false;
     auto &state = traceState();
-    state.inProgress = false;
+    state.progress = nullptr;
     state.inRender = false;
-    state.objthis = nullptr;
-    state.players.clear();
     state.frameCounter = 0;
+    state.nextFrameId = 0;
     state.lastCompletedFrameId = -1;
     state.lastCompletedTopPlayer = nullptr;
     state.lastCompletedRenderLayerObject = nullptr;
@@ -1477,24 +1500,40 @@ MotionTraceProgressScope::MotionTraceProgressScope(Player *player,
                                                    void *objthis) :
     _player(player) {
     auto &state = traceState();
-    state.inProgress = true;
-    state.objthis = objthis;
-    state.players.clear();
+    auto capture = std::make_unique<ProgressCapture>();
+    capture->parent = state.progress;
+    capture->objthis = objthis;
+    capture->frameId = state.nextFrameId++;
+    capture->exceptionsOnEntry = std::uncaught_exceptions();
+    state.progress = capture.get();
+    _capture = capture.release();
 }
 
 MotionTraceProgressScope::~MotionTraceProgressScope() {
     auto &state = traceState();
-    if(!state.inProgress) return;
-    emitProgressSample(_player);
-    state.inProgress = false;
-    state.objthis = nullptr;
-    state.players.clear();
+    std::unique_ptr<ProgressCapture> capture(
+        static_cast<ProgressCapture *>(_capture));
+    // Frida onLeave observes normal returns, not C++ stack unwinding.
+    if(std::uncaught_exceptions() == capture->exceptionsOnEntry) {
+        emitProgressSample(*capture);
+    }
+    state.progress = capture->parent;
 }
 
-void motionTraceRecordUpdatePlayer(Player *player) {
-    auto &state = traceState();
-    if(!state.inProgress || !player) return;
-    state.players.push_back(player);
+void MotionTraceProgressScope::setDeltaMs(double deltaMs) {
+    static_cast<ProgressCapture *>(_capture)->deltaMs = deltaMs;
+}
+
+void motionTraceSnapshotPhase3(Player *player) {
+    auto *capture = traceState().progress;
+    if(!capture || !player) return;
+    MotionPlayerSample sample{player, {}};
+    sample.layers.reserve(player->nodes().size());
+    for(const auto &node : player->nodes()) {
+        sample.layers.push_back(
+            {node.nodeType, node.stencilType, node.accumulated});
+    }
+    capture->samples.push_back(std::move(sample));
 }
 
 MotionTraceRenderDrawScope::MotionTraceRenderDrawScope(
@@ -1668,10 +1707,11 @@ void MotionTraceRenderDrawScope::recordUpdateLayerAfterDraw(
 
 MotionTraceRenderExecuteScope::MotionTraceRenderExecuteScope(
     Player *player, void *renderLayerObject, bool skipUpdate,
-    const PreparedItemList &mainList) :
+    const PreparedItemList &mainList, const char *boundary) :
     _player(player),
     _renderLayerObject(renderLayerObject),
     _skipUpdate(skipUpdate),
+    _boundary(boundary),
     _mainList(&mainList) {
     std::string payload;
     appendRenderItemsPayload(payload, _mainList, nullptr);
@@ -1679,14 +1719,16 @@ MotionTraceRenderExecuteScope::MotionTraceRenderExecuteScope(
     payload += ptrHex(renderLayerObject);
     payload += ",\"skipUpdate\":";
     payload += skipUpdate ? "true" : "false";
+    payload += ",\"executeBoundary\":";
+    appendJsonString(payload, _boundary);
     std::string diagnostics = playerDiagnostics(player);
     motionTraceRenderImageCheckpoint(
         player, renderLayerObject, "execute_pre",
-        "Player::executeLayerRenderCommands.enter.after-target-resolve");
+        (std::string(_boundary) + ".enter").c_str());
     motionTraceLayerRawProbe(
         player, renderLayerObject, "Player::renderExecute.enter");
     appendRenderEvent(player, "render_execute", "execute_enter",
-                      "Player::executeLayerRenderCommands.enter",
+                      (std::string(_boundary) + ".enter").c_str(),
                       payload, diagnostics);
 }
 
@@ -1701,10 +1743,12 @@ MotionTraceRenderExecuteScope::~MotionTraceRenderExecuteScope() {
     payload += _skipUpdate ? "true" : "false";
     payload += ",\"ok\":";
     payload += _ok ? "true" : "false";
+    payload += ",\"executeBoundary\":";
+    appendJsonString(payload, _boundary);
     std::string diagnostics = playerDiagnostics(_player);
     motionTraceRenderImageCheckpoint(
         _player, _renderLayerObject, "execute_post",
-        "Player::executeLayerRenderCommands.leave.before-return");
+        (std::string(_boundary) + ".leave").c_str());
     const bool accurateSla = traceState().accurateSlaRenderDepth > 0;
     if(_renderLayerObject) {
         auto &state = traceState();
@@ -1713,7 +1757,7 @@ MotionTraceRenderExecuteScope::~MotionTraceRenderExecuteScope() {
             accurateSla;
     }
     appendRenderEvent(_player, "render_execute", "execute_leave",
-                      "Player::executeLayerRenderCommands.leave",
+                      (std::string(_boundary) + ".leave").c_str(),
                       payload, diagnostics);
     // Android's accurate-SLA execute_post checkpoint is the next DrawDevice
     // upload, not the LayerManager no-onPaint buffer here. The post_draw

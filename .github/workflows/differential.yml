@@ -180,8 +180,12 @@ jobs:
           embuilder.py build sdl2 sdl2-mt
           embuilder.py build sdl2_ttf sdl2_ttf-mt
 
-      - name: Verify motion_playback 15 Hz timing contract
-        run: python3 tests/differential/python/test_motion_timing.py
+      - name: Verify motion_playback timing and sampling boundaries
+        run: |
+          python3 tests/differential/python/test_motion_timing.py
+          python3 tests/differential/python/test_motion_playback_strict_oracle.py
+          python3 tests/differential/python/test_motion_render_semantic.py
+          node tests/differential/oracle_runner/test_motion_capture_hooks.js
 
       - name: Build Wasmtime full guest for motion_playback
         run: |

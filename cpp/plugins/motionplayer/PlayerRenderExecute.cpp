@@ -517,10 +517,6 @@ namespace motion {
         bool skipUpdate,
         detail::PreparedRenderItemList &mainList) {
         using PreparedRenderItem = detail::PreparedRenderItem;
-#if defined(KRKR2_WASMTIME_HEADLESS)
-        detail::MotionTraceRenderExecuteScope motionTraceExecuteScope(
-            this, renderLayerObject, skipUpdate, mainList);
-#endif
 
         struct ResolvedSourceObject {
             tTJSVariant object;
@@ -851,9 +847,6 @@ namespace motion {
         callLayerResetClip_guess(
             layerClassObject, renderLayerObject);
         (void)skipUpdate;
-#if defined(KRKR2_WASMTIME_HEADLESS)
-        motionTraceExecuteScope.setResult(true);
-#endif
     }
 
 } // namespace motion

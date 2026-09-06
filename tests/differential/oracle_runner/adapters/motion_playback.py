@@ -6,10 +6,9 @@ Two modes:
     `TVPMainScene::startupFrom` via the harness-RPC engine (pure
     scheduler call; doesn't touch GL thread state), and let the embedded
     `startup.tjs` play yuzulogo then m2logo on the cocos2d GL thread.
-    Frida's `Interceptor.attach` on `Player_updateLayers @ +0x6BB33C`
-    captures per-frame per-layer accum state at the exact point where
-    it's coherent — no cross-thread RPC into Motion.Player methods, so
-    no GL-thread-affinity SIGSEGV.
+    The active 1.3.9 stage tracer snapshots each Player at the final phase-3
+    helper return, before cleanup, inside the script-visible progress window.
+    Values are copied on the GL thread; progress return only packages them.
 
     Rationale for the architecture split (harness-RPC for the boot
     call; Frida for the runtime observation): see the "分工原则"
@@ -76,6 +75,7 @@ COMPARE_FIELDS_STR: tuple[str, ...] = ()
 SEGMENT_ORDER: tuple[str, ...] = ("yuzulogo", "m2logo")
 TRACE_FLATTEN_PROJECTION = "trace_flatten-semantic-v1"
 TRACE_FLATTEN_SAMPLE_POINT = "progressCompat.phase3-end.pre-cleanup"
+TRACE_FLATTEN_SAMPLE_ORDER = "phase3-return-order"
 TRACE_FLATTEN_ABS_FLOAT_LIMIT = 1_000_000.0
 
 
@@ -883,8 +883,10 @@ def trigger_startup(engine, game_path_on_device: str) -> None:
 # ------------------------------------------------------------ oracle recording
 
 def normalize_frame(frame: dict, index: int) -> dict:
-    """Drop Frida-internal fields (player, frameId, layout), canonicalise
-    to the oracle schema consumed by the port-side motionTrace hook."""
+    """Canonicalise node values while retaining observed sampling evidence."""
+    error = sampling_contract_error(frame)
+    if error:
+        raise RuntimeError(f"motion sampling contract at frame {index}: {error}")
     layers = []
     for layer in frame.get("layers", []):
         out = {k: layer.get(k) for k in (
@@ -897,7 +899,32 @@ def normalize_frame(frame: dict, index: int) -> dict:
             if out.get(key) is None:
                 out[key] = ""
         layers.append(out)
-    return {"frame": index, "layers": layers}
+    return {
+        "frame": index,
+        "layers": layers,
+        **{key: frame.get(key) for key in (
+            "samplePoint", "sampleOrder", "deltaMs", "playerLayerCounts",
+        )},
+    }
+
+
+def sampling_contract_error(frame: dict) -> str | None:
+    if frame.get("samplePoint") != TRACE_FLATTEN_SAMPLE_POINT:
+        return "missing or incompatible samplePoint; re-record this trace"
+    if frame.get("sampleOrder") != TRACE_FLATTEN_SAMPLE_ORDER:
+        return "missing or incompatible sampleOrder; re-record this trace"
+    delta = frame.get("deltaMs")
+    if isinstance(delta, bool) or not isinstance(delta, (int, float)) or \
+            not math.isfinite(delta):
+        return "missing or non-finite observed progress deltaMs"
+    counts = frame.get("playerLayerCounts")
+    if not isinstance(counts, list) or not counts or any(
+        type(count) is not int or count <= 0 for count in counts
+    ):
+        return "missing or invalid playerLayerCounts"
+    if sum(counts) != len(frame.get("layers", [])):
+        return "playerLayerCounts does not cover the flattened snapshot"
+    return None
 
 
 def _trace_flatten_frames(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1069,6 +1096,11 @@ def _validate_trace_flatten_frame(
     local_frame: int,
 ) -> None:
     spec_id = str(spec["id"])
+    sampling_error = sampling_contract_error(frame)
+    if sampling_error:
+        raise _strict_error(
+            spec_id=spec_id, frame=frame, local_frame=local_frame,
+            error=sampling_error)
     if frame.get("projection") != TRACE_FLATTEN_PROJECTION:
         raise _strict_error(
             spec_id=spec_id, frame=frame, local_frame=local_frame,
@@ -1093,6 +1125,10 @@ def _validate_trace_flatten_frame(
         raise _strict_error(
             spec_id=spec_id, frame=frame, local_frame=local_frame,
             error=f"invalid playerCount: {player_count!r}")
+    if len(frame["playerLayerCounts"]) != player_count:
+        raise _strict_error(
+            spec_id=spec_id, frame=frame, local_frame=local_frame,
+            error="playerLayerCounts length differs from playerCount")
     players = diagnostics.get("players")
     if not isinstance(players, list) or len(players) != player_count:
         raise _strict_error(
@@ -1323,6 +1359,28 @@ def diff_frames(port_frames: list, oracle_frames: list, *,
     for f in range(n):
         pf = port_frames[f]
         of = oracle_frames[f]
+        protocol_errors = {
+            side: error for side, frame in (("port", pf), ("oracle", of))
+            if (error := sampling_contract_error(frame)) is not None
+        }
+        for side, frame in (("port", pf), ("oracle", of)):
+            if type(frame.get("frame")) is not int:
+                protocol_errors[side] = "missing normalized frame identity"
+        if protocol_errors:
+            mismatches.append({
+                "kind": "sampling_contract", "frame": f, **protocol_errors,
+            })
+            continue
+        sampling_fields = ("frame", "samplePoint", "sampleOrder",
+                           "deltaMs", "playerLayerCounts")
+        boundary_mismatches = [
+            {"kind": "sampling_contract", "frame": f, "field": key,
+             "port": pf.get(key), "oracle": of.get(key)}
+            for key in sampling_fields if pf.get(key) != of.get(key)
+        ]
+        if boundary_mismatches:
+            mismatches.extend(boundary_mismatches)
+            continue
         pl = pf.get("layers", [])
         ol = of.get("layers", [])
         if len(pl) != len(ol):

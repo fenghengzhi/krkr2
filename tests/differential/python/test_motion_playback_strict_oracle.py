@@ -41,6 +41,9 @@ class StrictMotionPlaybackOracleTest(unittest.TestCase):
                 "frameId": index,
                 "projection": mpb.TRACE_FLATTEN_PROJECTION,
                 "samplePoint": mpb.TRACE_FLATTEN_SAMPLE_POINT,
+                "sampleOrder": mpb.TRACE_FLATTEN_SAMPLE_ORDER,
+                "deltaMs": 0 if index == 0 else 67,
+                "playerLayerCounts": [len(layers)],
                 "playerCount": player_count,
                 "diagnostics": {
                     "layout": "deque",
@@ -68,6 +71,36 @@ class StrictMotionPlaybackOracleTest(unittest.TestCase):
                 spec = self._spec(case_id)
                 frames = self._strict_frames(case_id)
                 mpb._validate_trace_flatten_segment(spec, frames)
+
+    def test_normalization_retains_sampling_evidence(self) -> None:
+        raw = self._strict_frames("m2logo")[0]
+        normalized = mpb.normalize_frame(raw, 0)
+        for field in ("samplePoint", "sampleOrder", "deltaMs", "playerLayerCounts"):
+            self.assertEqual(normalized[field], raw[field])
+        self.assertEqual(mpb.diff_frames([normalized], [normalized]), [])
+
+    def test_identical_layers_cannot_hide_different_sampling(self) -> None:
+        frame = mpb.normalize_frame(self._strict_frames("m2logo")[0], 0)
+        for field, value in (
+            ("samplePoint", "progress.return"),
+            ("sampleOrder", "entry-order"),
+            ("deltaMs", 67),
+            ("frame", 1),
+            ("playerLayerCounts", []),
+        ):
+            with self.subTest(field=field):
+                other = copy.deepcopy(frame)
+                other[field] = value
+                diffs = mpb.diff_frames([frame], [other])
+                self.assertTrue(diffs)
+                self.assertEqual(diffs[0]["kind"], "sampling_contract")
+
+    def test_legacy_frames_require_recapture_even_when_both_match(self) -> None:
+        legacy = {"frame": 0, "layers": self._strict_frames("m2logo")[0]["layers"]}
+        self.assertEqual(
+            mpb.diff_frames([legacy], [legacy])[0]["kind"], "sampling_contract")
+        with self.assertRaisesRegex(RuntimeError, "re-record"):
+            mpb.normalize_frame(legacy, 0)
 
     def test_invalid_trace_flatten_frames_fail_validation(self) -> None:
         spec = self._spec("yuzulogo")

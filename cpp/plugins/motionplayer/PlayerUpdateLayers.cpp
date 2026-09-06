@@ -10,9 +10,6 @@ namespace motion {
     // --- updateLayers: four-reference 3-phase pipeline ---
     // Operates on persistent MotionNode deque instead of re-walking PSB tree.
     void Player::updateLayers() {
-#if defined(KRKR2_WASMTIME_HEADLESS)
-        detail::motionTraceRecordUpdatePlayer(this);
-#endif
         // Every reference clears the producer flag before any phase can set it
         // again. Post-draw only snapshots it; post-draw never clears it.
         _needsInternalAssignImages = false;
@@ -58,6 +55,10 @@ namespace motion {
         updateLayersPhase3_ParticleEmitter();
         updateLayersPhase3_ParticleSystem();
         updateLayersPhase3_AnchorNode();
+#if defined(KRKR2_WASMTIME_HEADLESS)
+        // Freeze values at the same helper-return boundary as the oracle.
+        detail::motionTraceSnapshotPhase3(this);
+#endif
 
         // === Post-loop cleanup ===
         // All four references clear the same player and per-node state here.

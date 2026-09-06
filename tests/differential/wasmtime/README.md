@@ -103,6 +103,31 @@ python3 tests/differential/python/run_wasm_guest_debug.py \
 
 ## Full motion playback
 
+The paired sampling contract is defined by semantic call boundaries:
+
+| Cases / route | Boundary |
+|---|---|
+| `yuzulogo`, `m2logo` node state | Every Player's final phase-3 helper return, before cleanup; copied immediately in actual helper-return order |
+| Ordinary Layer execution | Entire `renderToCanvas` call, including command construction and local accessor destruction |
+| Accurate SeparateLayerAdaptor execution | Entire accurate-SLA renderer call, before its post-draw update |
+| Scalar cases | Synchronous function return (unchanged) |
+
+Motion frame windows cover the script-visible `progress` callback, matching
+Frida; engine-owned calls to the shared progress bridge do not create frames.
+The normalized frames retain `samplePoint`, `sampleOrder`, observed `deltaMs`,
+and `playerLayerCounts`. Comparisons reject missing or different sampling
+evidence before comparing node values. The 15 Hz setting is a clock cadence,
+not evidence that each observed delta is identical: the first delta is zero
+and subsequent integer millisecond deltas must match between the two captures.
+
+Render events carry `captureContract: motion-render-boundaries-v1` and identify
+ordinary Canvas versus accurate SLA through `executeBoundary`. The comparator
+uses the original sequence numbers to compare interleaved prepare/build/execute
+boundaries, in addition to each stage's own event order. Historic artifacts
+without this metadata must be re-recorded; do not stamp the new contract onto
+an old capture. The Android 1.3.9 lane currently supports semantic events only,
+not paired image checkpoints.
+
 `krkr2_wasmtime_guest.wasm` imports the custom Emscripten/GL host environment
 implemented in `tests/differential/python/run_motion_playback_wasmtime.py`, so
 it cannot be instantiated by a plain `wasmtime run` command. Its automated
