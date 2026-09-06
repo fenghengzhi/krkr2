@@ -1,5 +1,11 @@
 # Player accurate SeparateLayer renderer（四参考二进制，2026-08-27）
 
+2026-09-07 纠正：第 6 节的“低 2 位 composite mode”取证正确，但本地实参曾漏掉
+`& 3`，此前“实现已匹配”的结论不成立。这会使 NEKOPARA 0 高光遮罩从裁剪变成
+alpha 填充，出现黑框。本轮重新反编译四端 accurate SLA、Canvas 和 alpha-mask
+helper 后补回该操作；Canvas 原版传完整标志，保持不变。详见
+`nekopara0_emote_highlight_stencil_operation_four_binary_2026-09-07.md`。
+
 ## 1. 入口与完整取证
 
 | 端 | renderer | body instructions | iOS armv7 SjLj cleanup |

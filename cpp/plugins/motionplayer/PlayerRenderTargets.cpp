@@ -823,7 +823,9 @@ namespace motion {
                             floatToSignedIntTowardZeroSaturated_guess(
                                 ancestor->clipRect[3] -
                                 ancestor->clipRect[1]),
-                            64, _maskMode, ancestor->stencilComposite);
+                            // Bit 2 selects the mask image above; accurate
+                            // SLA applies only the low two operation bits.
+                            64, _maskMode, ancestor->stencilComposite & 3);
                     } else if((ancestor->stencilComposite & 3) == 1) {
                         // This deliberate argc=4 dispatch is rejected by Layer;
                         // the native caller ignores the result and stops walking.
