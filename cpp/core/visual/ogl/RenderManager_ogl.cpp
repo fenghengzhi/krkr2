@@ -28,6 +28,9 @@
 #include "etcpak.h"
 #include "pvrtc.h"
 #include "pvr.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 // #define TEST_SHADER_ENABLED
 #ifndef GL_ETC1_RGB8_OES
@@ -5026,23 +5029,46 @@ public:
                 recreateRenderBuffer = true;
             }
             if(recreateRenderBuffer) {
-                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
+                GLenum format = GL_DEPTH24_STENCIL8;
+#ifdef __EMSCRIPTEN__
+                // WebGL 1 requires the unsized packed depth/stencil format.
+                // MAX_WEBGL_VERSION does not select the active context version.
+                // Read only the version: the SDK's full attributes query can
+                // copy undefined optional context attributes into SAFE_HEAP.
+                if(EM_ASM_INT({ return GL.currentContext.version; }) == 1) {
+                    format = GL_DEPTH_STENCIL;
+                }
+#endif
+                glRenderbufferStorage(GL_RENDERBUFFER, format,
                                       _stencilBufferW, _stencilBufferH);
             }
+#ifdef __EMSCRIPTEN__
+            // WebGL 1 rejects simultaneous DEPTH and STENCIL attachments,
+            // even when both refer to the same packed renderbuffer.
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                      GL_DEPTH_STENCIL_ATTACHMENT,
+                                      GL_RENDERBUFFER, _stencil_FBO);
+#else
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                                       GL_RENDERBUFFER, _stencil_FBO);
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT,
                                       GL_RENDERBUFFER, _stencil_FBO);
+#endif
             CHECK_GL_ERROR_DEBUG();
         }
     }
 
     void EndStencil() override {
         glDisable(GL_STENCIL_TEST);
+#ifdef __EMSCRIPTEN__
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                                  GL_RENDERBUFFER, 0);
+#else
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                                   GL_RENDERBUFFER, 0);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT,
                                   GL_RENDERBUFFER, 0);
+#endif
         glBindRenderbuffer(GL_RENDERBUFFER, _prevRenderBuffer);
         CHECK_GL_ERROR_DEBUG();
     }

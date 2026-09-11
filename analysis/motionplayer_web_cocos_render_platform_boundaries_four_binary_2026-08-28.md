@@ -3,6 +3,11 @@
 日期：2026-08-28  
 原始任务：`MP-G23`
 
+2026-09-12 更正：下文 WebGL2 是能力分析的前提，不是实际 context 检测结果。
+Cocos SDL 当前请求 GLES 2.0，NEKOPARA 4 实测运行于 WebGL 1；原来的 stencil
+格式/双 attachment 设置在该 context 上非法。详见
+[四文件取证与 WebGL 修复](nekopara4_webgl_stencil_four_binary_2026-09-12.md)。
+
 ## 1. 结论
 
 四个参考二进制要求的MotionPlayer核心渲染语义，在当前Web/Cocos架构中都可以表达：
@@ -32,8 +37,8 @@ API缺失而只能删掉。
    已经超出motionplayer.dll契约。可以比较交接前framebuffer，不能宣称不同显示栈的physical pixels和
    present timestamp必然一比一。
 
-本地实现已经把可表达部分保留在共享源码/私有OpenGL backend中；未发现需要新增降级、近似路径或
-production修改的静态差异。
+可表达部分可以保留在共享源码/私有OpenGL backend中。原审计没有实际检查 context 版本，
+因此“无需 production 修改”的结论过强；2026-09-12 已确认需要 WebGL 1 stencil API 适配。
 
 ## 2. 本轮 fresh 四端证据总量
 
@@ -133,8 +138,10 @@ Add/Sub/Mul等render method需要读取当前destination。Web backend有两条�
 ### 5.4 alpha test、stencil和alpha mask
 
 WebGL没有legacy `glAlphaFunc`时，backend用fragment shader的`discard`与uniform threshold表达同一
-alpha-test gate。WebGL2支持`DEPTH24_STENCIL8` renderbuffer；BeginStencil把同一renderbuffer挂到
-depth/stencil attachment，Motion继续执行reference的mask、func和replace/keep序列。
+alpha-test gate。WebGL2支持`DEPTH24_STENCIL8` renderbuffer；实际 WebGL 1 context 则要求
+`DEPTH_STENCIL` 和 `DEPTH_STENCIL_ATTACHMENT`，不能直接复用原生双 attachment 调用。
+BeginStencil/EndStencil 必须按实际 API 配对挂载/卸载同一个 renderbuffer，Motion 继续执行
+reference 的 mask、func 和 replace/keep 序列。
 
 alpha-mask software分支直接改BGRA alpha；GPU分支继续用private manager method与blend tuple。
 `GL_MAX`等本任务实际用到的blend equation在WebGL2能力范围内。不存在“Web只能忽略stencil composite”
