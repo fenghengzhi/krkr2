@@ -20,6 +20,7 @@ set(_PLUGIN_SOURCES
     LayerExBase.cpp
     layerExMovie.cpp
     kirikiroid2.cpp
+    lzfs.cpp
 )
 target_sources(${PROJECT_NAME} PRIVATE ${_PLUGIN_SOURCES})
 
@@ -119,6 +120,9 @@ add_definitions(-D__STDC_CONSTANT_MACROS -DTJS_TEXT_OUT_CRLF)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${KRKR2PLUGIN_PATH} ${KRKR2PLUGIN_PATH}/simplebinder} ${KRKR2PLUGIN_PATH}/layerExImage)
 target_link_libraries(${PROJECT_NAME} PUBLIC krkr2core)
+
+find_package(lz4 CONFIG REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE lz4::lz4)
 
 add_subdirectory(psdfile)
 add_subdirectory(psbfile)

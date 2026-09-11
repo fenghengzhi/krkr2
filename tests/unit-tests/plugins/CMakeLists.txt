@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(TestPlugins LANGUAGES CXX)
 
 set(SOURCES
+        lzfs-dll.cpp
         psbfile-dll.cpp
         motionplayer-dll.cpp
         motionplayer-ttstr-hash-test.cpp
@@ -13,6 +14,9 @@ set(TARGETS ${BASENAMES_SOURCES})
 foreach(name ${TARGETS})
     add_executable(${name} ${name}.cpp main.cpp)
 endforeach()
+
+find_package(lz4 CONFIG REQUIRED)
+target_link_libraries(lzfs-dll PRIVATE lz4::lz4)
 
 set(ALL_TARGETS
         ${TARGETS}
@@ -33,6 +37,6 @@ endforeach()
 # DrawDeviceD3D.cpp in krkr2plugins_ncbind. The application whole-archives that
 # library; isolated tests that compile EmotePlayer must link it explicitly as
 # well.
-foreach(name motionplayer-dll psbfile-dll motionplayer-ttstr-hash-test)
+foreach(name motionplayer-dll psbfile-dll motionplayer-ttstr-hash-test lzfs-dll)
     target_link_libraries(${name} PRIVATE krkr2plugins_ncbind)
 endforeach()

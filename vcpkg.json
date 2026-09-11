@@ -98,5 +98,10 @@
     },
     "zstd"
   ],
-  "overrides": []
+  "overrides": [
+    {
+      "name": "lz4",
+      "version": "1.7.4"
+    }
+  ]
 }
