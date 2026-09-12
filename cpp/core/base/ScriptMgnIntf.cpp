@@ -748,6 +748,7 @@ void TVPExecuteStorage(const ttstr &name, tTJSVariant *result,
 }
 #include <fstream>
 #include <tjsByteCodeLoader.h>
+#include "NekoparaTouchCompatibility.h"
 //---------------------------------------------------------------------------
 void TVPExecuteStorage(const ttstr &name, iTJSDispatch2 *context,
                        tTJSVariant *result, bool isexpression,
@@ -872,9 +873,13 @@ void TVPExecuteStorage(const ttstr &name, iTJSDispatch2 *context,
 
     if(TVPScriptEngine) {
 
-        if(!isexpression)
+        if(!isexpression) {
+            const auto compatible = TVPPrepareNekoparaTouchScript(
+                shortname.c_str(), buffer.c_str());
+            if(!compatible.empty())
+                buffer = compatible.c_str();
             TVPScriptEngine->ExecScript(buffer, result, context, &shortname);
-        else
+        } else
             TVPScriptEngine->EvalExpression(buffer, result, context,
                                             &shortname);
     }
