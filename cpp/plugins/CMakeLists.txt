@@ -4,6 +4,7 @@ project(krkr2plugin)
 add_library(${PROJECT_NAME} STATIC)
 
 set(_PLUGIN_SOURCES
+    AlphaMovie.cpp
     scriptsEx.cpp
     win32dialog.cpp
     dirlist.cpp

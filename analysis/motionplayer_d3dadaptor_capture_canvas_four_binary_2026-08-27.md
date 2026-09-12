@@ -40,7 +40,7 @@ layer = Layer::FromVariant(argument)
 if isSoftwareRenderManager():
     width  = targetTexture.width
     height = targetTexture.height
-    layer.SetImageSize(width, height)
+    layer.SetSize(width, height)
 
     src = targetTexture.GetScanLineForRead(0)
     dst = layer.GetMainImagePixelBufferForWrite()
@@ -62,7 +62,7 @@ if isSoftwareRenderManager():
 
 - Variant 到 Layer 的转换发生在 renderer 分支之前；非法/空 Layer 不会被静默忽略；
 - target texture、scanline 0、Layer 写缓冲和 pitch 都没有本地 null/范围检查；
-- `SetImageSize` 先发生，因此其部分状态即使后续取缓冲或复制失败也不会回滚；
+- `SetSize` 先发生，因此其部分状态即使后续取缓冲或复制失败也不会回滚；
 - 等 pitch 路径没有 `height >= 1` gate。`srcPitch * height` 明确在 signed int32 中乘法，
   再符号扩展/转换为 `size_t`；height 为 0 时仍进入零长度 `memcpy`；
 - 非等 pitch 路径仅在 signed height 大于等于 1 时循环；width 没有非负检查；
@@ -71,7 +71,7 @@ if isSoftwareRenderManager():
 - Layer 写缓冲 helper 自身会令 main image 可写并设置图像修改状态，这不是纯指针 getter。
 
 本地 `copyTargetTextureRows_guess` 是同一 row-copy 规则的内部测试入口，但公开
-`captureCanvas` 还包括 Variant 转换和 `SetImageSize` 先行副作用，不能把两者视为完全相同
+`captureCanvas` 还包括 Variant 转换和 `SetSize` 先行副作用，不能把两者视为完全相同
 的脚本边界。
 
 ## 4. GPU 路径：旧 Layer texture 与 adaptor target 的交换
@@ -133,7 +133,7 @@ Layer 接收旧 target 后，adaptor slot 先变 null，再通过 Motion 私有 
 
 | 角色 | Android arm64 | Android armv7 | iOS arm64 | iOS armv7 |
 |---|---:|---:|---:|---:|
-| `SetImageSize` thunk | `0x805724` | `0x62F6A4` | `0x100078A98` | `0x75C94` |
+| `SetSize` thunk | `0x805724` | `0x62F6A4` | `0x100078A98` | `0x75C94` |
 | write-buffer getter | `0x807C00` | `0x630F28` | `0x10007A980` | `0x77AC2` |
 | Layer buffer pitch | `0x807C20` | `0x630F40` | `0x10007A9A0` | `0x77ADA` |
 | `ApplyFont` | `0x80C848` | `0x634004` | `0x10007E854` | `0x7BD38` |
@@ -167,3 +167,10 @@ renderer 的外层、batch、method 与 stencil 后来由 `MP-R14-D3D-DEEP-BATCH
 
 当前环境缺少 CMake、Ninja 和 Emscripten，且单头文件语法检查被缺失的
 `boost/locale.hpp` 阻塞，因此本 slice 不宣称完成正式 native/Web 构建。
+
+2026-09-13 纠正：四个上述尺寸 thunk 深入目标体后确认修改 Layer Rect，
+对应 SetSize/InternalSetSize，旧 SetImageSize 命名错误。四文件 fresh 证据见
+`alphamovie_reconstruction_four_binary_2026-09-13.md` 的共享 helper 纠正段。
+当前 D3DAdaptor.cpp 的 software capture 仍调用 SetImageSize；本笔记历史
+IMPLEMENTED 结论不能覆盖这项新发现的偏差。其调用站点应另行四文件复核，
+本次 AlphaMovie 工作没有借此修改其它插件的 C++ 行为。
