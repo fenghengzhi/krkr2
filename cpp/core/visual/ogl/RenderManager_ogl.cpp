@@ -1900,6 +1900,12 @@ public:
 
     void AsTarget() override {
         SyncPixel();
+        // Flush pending CPU edits first, then discard any readback of the old
+        // GPU contents. The native countdown can otherwise be refreshed by
+        // captureCanvas forever when only a few draw batches write the target.
+        delete[] PixelData;
+        PixelData = nullptr;
+        PixelDataCounter = 0;
         TVPSetRenderTarget(texture);
     }
 };

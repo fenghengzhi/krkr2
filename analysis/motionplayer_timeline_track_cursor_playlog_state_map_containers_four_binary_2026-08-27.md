@@ -1,5 +1,10 @@
 # motionplayer timeline / track / cursor / play-log / state-map 容器总审计（四参考二进制，2026-08-27）
 
+2026-09-12 更新：用户明确要求修复原版 NEKOPARA 兼容缺陷后，本地 metadata
+builder 增加了 folder/children 遍历。本文的四二进制取证仍有效，但 builder 的
+“本地完全一致”结论仅适用于修复前版本；当前有意差异见
+[NEKOPARA 修复记录](nekopara4_readback_and_timeline_folders_fix_2026-09-12.md)。
+
 ## 1. 范围、方法与结论
 
 本报告逐要求闭合 `tasks.md` 的 `MP-C03`，覆盖的不是脚本注册面本身，而是

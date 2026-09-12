@@ -21645,26 +21645,31 @@ TEST_CASE("timeline builder retains root, element and probe owners through ncb r
     REQUIRE(rootState.aliveAfterExternalOwnerDrop);
     REQUIRE(rootState.elementAliveAfterStorageDrop);
 
-    // The element accessor first performs an HRESULT-gated MEMBERMUSTEXIST
-    // probe, destroys that scratch Variant, then performs independent bool and
-    // label reads. The latter two return failure after writing usable values.
-    REQUIRE(elementState.reads.size() == 3);
-    REQUIRE(elementState.reads[0].member == TJS_W("diff"));
+    // Folder compatibility first probes optional type. The remaining native
+    // diff probe destroys its scratch before independent bool and label reads;
+    // those typed reads still consume usable values after a failing HRESULT.
+    REQUIRE(elementState.reads.size() == 4);
+    REQUIRE(elementState.reads[0].member == TJS_W("type"));
     REQUIRE(elementState.reads[0].flags == TJS_MEMBERMUSTEXIST);
-    REQUIRE(elementState.reads[0].hint != nullptr);
+    REQUIRE(elementState.reads[0].hint == nullptr);
     REQUIRE(elementState.reads[0].objthis == elementProbe);
     REQUIRE(elementState.reads[1].member == TJS_W("diff"));
-    REQUIRE(elementState.reads[1].flags == 0);
-    REQUIRE(elementState.reads[1].hint == elementState.reads[0].hint);
+    REQUIRE(elementState.reads[1].flags == TJS_MEMBERMUSTEXIST);
+    REQUIRE(elementState.reads[1].hint != nullptr);
     REQUIRE(elementState.reads[1].objthis == elementProbe);
-    REQUIRE(elementState.reads[2].member == TJS_W("label"));
+    REQUIRE(elementState.reads[2].member == TJS_W("diff"));
     REQUIRE(elementState.reads[2].flags == 0);
-    REQUIRE(elementState.reads[2].hint != nullptr);
-    REQUIRE(elementState.reads[2].hint != elementState.reads[0].hint);
+    REQUIRE(elementState.reads[2].hint == elementState.reads[1].hint);
     REQUIRE(elementState.reads[2].objthis == elementProbe);
+    REQUIRE(elementState.reads[3].member == TJS_W("label"));
+    REQUIRE(elementState.reads[3].flags == 0);
+    REQUIRE(elementState.reads[3].hint != nullptr);
+    REQUIRE(elementState.reads[3].hint != elementState.reads[1].hint);
+    REQUIRE(elementState.reads[3].objthis == elementProbe);
     REQUIRE(elementState.reads[0].rootAlive);
     REQUIRE(elementState.reads[1].rootAlive);
     REQUIRE(elementState.reads[2].rootAlive);
+    REQUIRE(elementState.reads[3].rootAlive);
     REQUIRE(elementState.scratchAliveAfterStorageDrop);
     REQUIRE_FALSE(elementState.scratchAliveAtBoolRead);
     REQUIRE_FALSE(scratchState.alive);

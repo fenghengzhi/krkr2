@@ -664,6 +664,7 @@ namespace motion {
         // in timelineStates[label]. Duplicate labels remain in the vectors
         // while the last raw element wins; active labels and old map-only keys stay.
         void buildTimelineControl_guess(const tTJSVariant &timelineControl);
+        void appendTimelineControlEntries(const tTJSVariant &timelineControl);
 
         void initializeTimelineState_guess(
             detail::EmoteTimelineState &state);

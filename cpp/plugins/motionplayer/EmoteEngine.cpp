@@ -2263,19 +2263,33 @@ namespace motion {
         }
     }
 
-    // Four-reference common builder. It rebuilds only the two declared-label
-    // vectors; the timeline-state map and active labels retain existing state.
+    // Rebuild only the declared-label vectors; retain timeline states and active
+    // labels. Folder traversal extends the references' flat metadata reader.
     void EmoteEngine::buildTimelineControl_guess(
         const tTJSVariant &timelineControl) {
         _timelineLabels.clear();
         _timelineDiffLabels.clear();
+        appendTimelineControlEntries(timelineControl);
+    }
 
+    void EmoteEngine::appendTimelineControlEntries(
+        const tTJSVariant &timelineControl) {
         ncbPropAccessor controlObject{tTJSVariant(timelineControl)};
         const int count = static_cast<int>(controlObject.GetArrayCount());
         for(int index = 0; index < count; ++index) {
             const tTJSVariant elem = controlObject.GetValue(
                 index, ncbTypedefs::Tag<tTJSVariant>());
             ncbPropAccessor elementObject{tTJSVariant(elem)};
+
+            // Newer models group timelines into folders. Only their children
+            // are playable; registering folder labels loses the actual loops.
+            tTJSVariant type;
+            if(elementObject.checkVariant(TJS_W("type"), type) &&
+               type.Type() == tvtString && ttstr(type) == TJS_W("folder")) {
+                appendTimelineControlEntries(elementObject.GetValue(
+                    TJS_W("children"), ncbTypedefs::Tag<tTJSVariant>()));
+                continue;
+            }
 
             // HasValue destroys its MEMBERMUSTEXIST probe Variant before the
             // second typed read, so a getter can observe two independent calls.
