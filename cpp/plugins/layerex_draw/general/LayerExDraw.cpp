@@ -611,10 +611,13 @@ BrushBase *createBrush(tTJSVariant colorOrBrush) {
             } break;
             case BrushTypeLinearGradient: {
                 LinearGradientBrush *lbrush{};
-                Color color1{ (ARGB)(tjs_int)info.getIntValue(TJS_W("color1"),
-                                                              0) };
-                Color color2{ (ARGB)(tjs_int)info.getIntValue(TJS_W("color2"),
-                                                              0) };
+                // GDI+ writes directly into the layer's RGBA pixel buffer.
+                const tjs_uint32 color1Value =
+                    info.getIntValue(TJS_W("color1"), 0);
+                Color color1{ TVP_REVRGB(color1Value) };
+                const tjs_uint32 color2Value =
+                    info.getIntValue(TJS_W("color2"), 0);
+                Color color2{ TVP_REVRGB(color2Value) };
 
                 tTJSVariant var;
                 if(info.checkVariant(TJS_W("point1"), var)) {

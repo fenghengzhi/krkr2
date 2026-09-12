@@ -111,8 +111,9 @@ NCB_REGISTER_SUBCLASS_DELAY(PointFClass) {
 }
 
 PointFClass getPoint(const tTJSVariant &var) {
-    PointFConvertor<PointF> conv{};
-    PointF ret;
+    // Native lookup must use the same type as the GdiPlus.PointF registration.
+    PointFConvertor<PointFClass> conv{};
+    PointFClass ret;
     conv(ret, var);
     return ret;
 }
@@ -187,8 +188,9 @@ NCB_REGISTER_SUBCLASS_DELAY(RectFClass) {
 }
 
 RectFClass getRect(const tTJSVariant &var) {
-    RectFConvertor<RectF> conv;
-    RectF ret;
+    // The unregistered RectF POD has no valid NCB class ID for this lookup.
+    RectFConvertor<RectFClass> conv;
+    RectFClass ret;
     conv(ret, var);
     return ret;
 }
